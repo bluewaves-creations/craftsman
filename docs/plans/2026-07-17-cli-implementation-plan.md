@@ -47,12 +47,22 @@ Success: both ADRs written and human-reviewed; `spikes/` code stays out of `cli/
 
 ## Batch 2 — Spec engine + self-hosting verify (first real batch)
 
-Files: `cli/src/{config.rs, spec.rs, verify/mod.rs, verify/normalize.rs (from S2), verify/adapters/cucumber_rs.rs}`, repo-root `SPEC.md` + `tests/` cucumber-rs harness.
-- [ ] `craftsman.toml` parsing (serde, deny_unknown_fields, versioned).
-- [ ] Spec engine on the `gherkin` crate: `spec status` (inventory + per-batch red/green once results exist), `spec lint` (authoring rules from gherkin-authoring.md: name uniqueness, regex-hostile chars, batch-tag ban).
-- [ ] `verify` for the rust stack (cucumber-rs adapter): run, capture JUnit/json, normalize (S2 schema), exit-code contract incl. code 4 on empty selection.
-- [ ] Write this repo's SPEC.md: scenarios for `spec status/lint`, `verify` exit codes, config errors — and make them pass via the harness. **Self-hosting begins: `cargo run -- verify` goes green on craftsman's own spec.**
-- [ ] Success line: `craftsman verify` exit 0 on this repo; `spec lint` catches a seeded bad scenario in a test fixture.
+Files: `cli/src/{config.rs, plan.rs, spec.rs, verify/mod.rs, verify/normalize.rs (from S2), verify/adapters/cucumber_rs.rs}`, repo-root `SPEC.md` + `cli/tests/spec.rs` cucumber-rs harness.
+- [x] `craftsman.toml` parsing (serde, deny_unknown_fields, versioned).
+- [x] Spec engine on the `gherkin` crate: `spec status` (inventory; per-batch red/green arrives with recorded results, Batch 3+), `spec lint` (authoring rules: name uniqueness, forbidden/regex-hostile chars, batch-tag ban, missing feature name).
+- [x] `verify` for the rust stack (cucumber-rs adapter): run, capture cucumber-json (output-json per ADR-003, not JUnit), normalize (S2 schema), exit-code contract incl. code 4 on empty selection.
+- [x] Write this repo's SPEC.md: scenarios for `spec status/lint`, `verify` exit codes, config errors — and make them pass via the harness. **Self-hosting begun: `cargo run -- verify` green on craftsman's own spec.**
+- [x] Success line: `craftsman verify` exit 0 on this repo; `spec lint` catches the seeded bad fixtures under `cli/tests/fixtures/lint/`.
+
+Scenarios:
+- Spec status lists every scenario in the spec
+- Spec status emits machine-readable JSON
+- Spec lint accepts a clean spec
+- Spec lint rejects duplicate scenario names
+- Spec lint rejects a batch tag
+- Verify fails loudly when the scenario filter matches nothing
+- Verify refuses to run without a craftsman config
+- Config rejects a verify gate weaker than strict
 
 ## Batch 3 — Ledger + plan + doctor
 

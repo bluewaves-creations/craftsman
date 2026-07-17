@@ -23,3 +23,7 @@ nursery = { level = "warn", priority = -1 }
 cucumber = { version = "0.23", features = ["output-json"] }
 tempfile = "3.27.0"
 tokio = { version = "1.53.0", features = ["macros", "rt-multi-thread"] }
+
+[[test]]
+name = "spec"
+harness = false

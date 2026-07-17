@@ -5,6 +5,11 @@ spec = "SPEC.md"
 plan = "docs/plans/2026-07-17-cli-implementation-plan.md"
 cli-version = "0.0.1"
 
+[verify]
+runner = "cucumber-rs"
+runner-target = "spec"
+cwd = "cli"
+
 [gates]
 verify = "strict"
 lint = "strict"

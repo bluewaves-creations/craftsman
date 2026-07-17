@@ -1,0 +1,54 @@
+Feature: Craftsman CLI core
+
+  The craftsman binary is the machine actor of the Craftsman Dev triad:
+  every verdict is an exit code, never a judgment call. These scenarios
+  drive the compiled binary against disposable fixture projects and are
+  run by craftsman itself via the cucumber-rs harness in cli/tests/spec.rs.
+
+  Scenario: Spec status lists every scenario in the spec
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "First behavior"
+    And the output contains "Second behavior"
+    And the output contains "unknown"
+
+  Scenario: Spec status emits machine-readable JSON
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "spec status --json"
+    Then the exit code is 0
+    And stdout is valid JSON listing 2 scenarios
+
+  Scenario: Spec lint accepts a clean spec
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "spec lint"
+    Then the exit code is 0
+
+  Scenario: Spec lint rejects duplicate scenario names
+    Given a craftsman project whose spec has scenarios "Twice told" and "Twice told"
+    When I run craftsman with "spec lint"
+    Then the exit code is 1
+    And the output contains "duplicate"
+
+  Scenario: Spec lint rejects a batch tag
+    Given a craftsman project whose spec has a scenario tagged "@batch-2"
+    When I run craftsman with "spec lint"
+    Then the exit code is 1
+    And the output contains "PLAN.md"
+
+  Scenario: Verify fails loudly when the scenario filter matches nothing
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman verify for the scenario "No such behavior"
+    Then the exit code is 4
+
+  Scenario: Verify refuses to run without a craftsman config
+    Given an empty project directory
+    When I run craftsman with "verify"
+    Then the exit code is 3
+    And the output contains "craftsman.toml"
+
+  Scenario: Config rejects a verify gate weaker than strict
+    Given a craftsman project whose config sets the verify gate to "baseline"
+    When I run craftsman with "spec status"
+    Then the exit code is 3
+    And the output contains "strict"
