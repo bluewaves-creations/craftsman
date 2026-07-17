@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="0.025" timestamp="2026-07-18T00:04:03.636139+01:00" hostname="Bertrands-Mac-Studio.local"><testcase classname="tests.test_todo" name="test_add_an_item_to_the_list" time="0.001" /><testcase classname="tests.test_todo" name="test_adding_one_item_yields_two_items" time="0.000"><failure message="AssertionError: assert 1 == 2&#10; +  where 1 = len(['buy milk'])">fixturefunc = &lt;function contains at 0x10ba0ede0&gt;
+request = &lt;FixtureRequest for &lt;Function test_adding_one_item_yields_two_items&gt;&gt;
+kwargs = {'n': 2, 'todo': ['buy milk']}
+
+    def call_fixture_func(
+        fixturefunc: _FixtureFunc[FixtureValue], request: FixtureRequest, kwargs
+    ) -&gt; FixtureValue:
+        if inspect.isgeneratorfunction(fixturefunc):
+            fixturefunc = cast(Callable[..., Generator[FixtureValue]], fixturefunc)
+            generator = fixturefunc(**kwargs)
+            try:
+                fixture_result = next(generator)
+            except StopIteration:
+                raise ValueError(f"{request.fixturename} did not yield a value") from None
+            finalizer = functools.partial(_teardown_yield_fixture, fixturefunc, generator)
+            request.addfinalizer(finalizer)
+        else:
+            fixturefunc = cast(Callable[..., FixtureValue], fixturefunc)
+&gt;           fixture_result = fixturefunc(**kwargs)
+                             ^^^^^^^^^^^^^^^^^^^^^
+
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1005: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+todo = ['buy milk'], n = 2
+
+    @then(parsers.parse("the list contains {n:d} items"))
+    def contains(todo, n):
+&gt;       assert len(todo) == n
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len(['buy milk'])
+
+tests/test_todo.py:21: AssertionError</failure></testcase><testcase classname="tests.test_todo" name="test_remove_an_item_from_the_list" time="0.000"><failure message="pytest_bdd.exceptions.StepDefinitionNotFoundError: Step definition is not found: When &quot;I remove &quot;buy milk&quot;&quot;. Line 14 in scenario &quot;Remove an item from the list&quot; in the feature &quot;./features/todo.feature&quot;">E   pytest_bdd.exceptions.StepDefinitionNotFoundError: Step definition is not found: When "I remove "buy milk"". Line 14 in scenario "Remove an item from the list" in the feature "./features/todo.feature"
+All traceback entries are hidden. Pass `--full-trace` to see hidden and internal frames.</failure></testcase></testsuite></testsuites>

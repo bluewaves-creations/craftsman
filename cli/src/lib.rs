@@ -2,3 +2,4 @@
 //! binary. Library modules use `thiserror`; `anyhow` lives only in `main.rs`.
 
 pub mod config;
+pub mod verify;
