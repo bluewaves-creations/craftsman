@@ -1,0 +1,161 @@
+[
+  {
+    "description": "",
+    "elements": [
+      {
+        "description": "",
+        "id": "todo-list;add-an-item-to-the-list",
+        "keyword": "Scenario",
+        "line": 2,
+        "name": "Add an item to the list",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 3,
+            "name": "an empty todo list",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:6"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 159625
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 4,
+            "name": "I add \"buy milk\"",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:10"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 58499
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 5,
+            "name": "the list contains 1 items",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:16"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 44458
+            }
+          }
+        ],
+        "tags": [],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "todo-list;adding-one-item-yields-two-items",
+        "keyword": "Scenario",
+        "line": 7,
+        "name": "Adding one item yields two items",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 8,
+            "name": "an empty todo list",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:6"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 12500
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 9,
+            "name": "I add \"buy milk\"",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:10"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 21000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 10,
+            "name": "the list contains 2 items",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:16"
+            },
+            "result": {
+              "status": "failed",
+              "duration": 337834,
+              "error_message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n1 !== 2\n\n    + expected - actual\n\n    -1\n    +2\n\n    at World.<anonymous> (file:///Users/bertrand/Developer/craftsman/spikes/s2-normalizer/samples/ts-todo/features/step_definitions/steps.mjs:17:10)"
+            }
+          }
+        ],
+        "tags": [],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "todo-list;remove-an-item-from-the-list",
+        "keyword": "Scenario",
+        "line": 12,
+        "name": "Remove an item from the list",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 13,
+            "name": "an empty todo list",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:6"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 14167
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 14,
+            "name": "I remove \"buy milk\"",
+            "result": {
+              "status": "undefined",
+              "duration": 0
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 15,
+            "name": "the list contains 0 items",
+            "match": {
+              "location": "features/step_definitions/steps.mjs:16"
+            },
+            "result": {
+              "status": "skipped",
+              "duration": 0
+            }
+          }
+        ],
+        "tags": [],
+        "type": "scenario"
+      }
+    ],
+    "id": "todo-list",
+    "line": 1,
+    "keyword": "Feature",
+    "name": "Todo list",
+    "tags": [],
+    "uri": "features/todo.feature"
+  }
+]

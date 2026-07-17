@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites time="0.011">
+<testsuite name="todo.bats" tests="3" failures="1" errors="0" skipped="1" time="0.011" timestamp="2026-07-17T23:06:02" hostname="Bertrands-Mac-Studio.local">
+    <testcase classname="todo.bats" name="Add an item to the list" time="0.006" />
+    <testcase classname="todo.bats" name="Adding one item yields two items" time="0.005">
+        <failure type="failure">(in test file todo.bats, line 13)
+  `[ &quot;${#list[@]}&quot; -eq 2 ]&#39; failed</failure>
+    </testcase>
+    <testcase classname="todo.bats" name="Remove an item from the list" time="0">
+        <skipped>step not implemented: When I remove &quot;buy milk&quot;</skipped>
+    </testcase>
+
+</testsuite>
+</testsuites>

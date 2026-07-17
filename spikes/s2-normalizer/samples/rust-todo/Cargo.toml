@@ -1,0 +1,14 @@
+[package]
+name = "rust-todo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[dev-dependencies]
+cucumber = { version = "0.23", features = ["output-junit"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[test]]
+name = "todo"
+harness = false

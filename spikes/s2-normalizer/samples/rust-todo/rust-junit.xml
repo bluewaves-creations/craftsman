@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite id="0" name="Feature: Todo list: tests/features/todo.feature" package="testsuite/Feature: Todo list: tests/features/todo.feature" tests="3" errors="0" failures="1" hostname="localhost" timestamp="2026-07-17T23:05:41.431613Z" time="0.000632"><testcase name="Scenario: Add an item to the list: tests/features/todo.feature:2:3" time="0.000357"><system-out><![CDATA[  Scenario: Add an item to the list
+   ✔  Given an empty todo list
+   ✔  When I add "buy milk"
+   ✔  Then the list contains 1 items
+]]></system-out></testcase><testcase name="Scenario: Adding one item yields two items: tests/features/todo.feature:7:3" time="0.000275"><failure type="Step Panicked" message="Step panicked. Captured output: assertion `left == right` failed
+  left: 1
+ right: 2"/><system-out><![CDATA[  Scenario: Adding one item yields two items
+   ✔  Given an empty todo list
+   ✔  When I add "buy milk"
+   ✘  Then the list contains 2 items
+      Step failed:
+      Defined: tests/features/todo.feature:10:5
+      Matched: tests/todo.rs:20:1
+      Step panicked. Captured output: assertion `left == right` failed
+        left: 1
+       right: 2
+]]></system-out></testcase><testcase name="Scenario: Remove an item from the list: tests/features/todo.feature:12:3" time="0"><skipped/><system-out><![CDATA[  Scenario: Remove an item from the list
+   ✔  Given an empty todo list
+   ?  When I remove "buy milk"
+      Step skipped: tests/features/todo.feature:14:5
+]]></system-out></testcase></testsuite></testsuites>
