@@ -103,6 +103,14 @@ fn project_with_verify_gate(w: &mut CliWorld, mode: String) {
     );
 }
 
+#[given(expr = "its plan assigns batch {int} the scenarios {string} and {string}")]
+fn plan_assigns_batch(w: &mut CliWorld, batch: u32, first: String, second: String) {
+    w.write(
+        "PLAN.md",
+        &format!("# Plan\n\n## Batch {batch}\n\nScenarios:\n- {first}\n- {second}\n"),
+    );
+}
+
 #[given("an empty project directory")]
 fn empty_project_directory(w: &mut CliWorld) {
     let _ = w.project_dir();

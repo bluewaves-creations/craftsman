@@ -113,7 +113,7 @@ pub struct Finding {
 }
 
 impl Finding {
-    const fn error(rule: &'static str, line: usize, message: String) -> Self {
+    pub(crate) const fn error(rule: &'static str, line: usize, message: String) -> Self {
         Self {
             severity: Severity::Error,
             rule,
@@ -122,7 +122,7 @@ impl Finding {
         }
     }
 
-    const fn warning(rule: &'static str, line: usize, message: String) -> Self {
+    pub(crate) const fn warning(rule: &'static str, line: usize, message: String) -> Self {
         Self {
             severity: Severity::Warning,
             rule,

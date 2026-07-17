@@ -1,13 +1,17 @@
-//! PLAN.md parsing — the batch → scenario mapping.
+//! Plan parsing — the batch → scenario mapping.
 //!
 //! Batching lives in the plan, never in Gherkin tags (design decision #1):
 //! each `## Batch N` section carries a `Scenarios:` list of scenario names,
 //! one `- ` bullet per name. `craftsman verify --batch N` resolves names
-//! here and synthesizes the runner's native filter.
+//! here and synthesizes the runner's native filter; `craftsman plan lint`
+//! keeps the whole mapping honest against the spec inventory.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
+
+use crate::spec::Finding;
 
 /// Errors resolving a batch from the plan. Exit code 3 territory.
 #[derive(Debug, Error)]
@@ -27,6 +31,30 @@ pub enum PlanError {
     ScenariosMissing { path: PathBuf, batch: u32 },
 }
 
+/// One `## Batch N` section of the plan with its (possibly absent)
+/// `Scenarios:` list.
+#[derive(Debug, Clone)]
+pub struct PlanBatch {
+    pub number: u32,
+    /// 1-based line of the `## Batch N` heading.
+    pub line: usize,
+    /// `(line, scenario name)` bullets under `Scenarios:`; empty when the
+    /// section carries no list (batches not yet detailed — legal).
+    pub scenarios: Vec<(usize, String)>,
+}
+
+/// Read the plan file and parse every batch section.
+///
+/// # Errors
+/// [`PlanError::Read`] when the plan cannot be read.
+pub fn parse_plan(path: &Path) -> Result<Vec<PlanBatch>, PlanError> {
+    let text = std::fs::read_to_string(path).map_err(|source| PlanError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    Ok(batches(&text))
+}
+
 /// Resolve the scenario names of `## Batch N` in the plan file.
 ///
 /// # Errors
@@ -34,83 +62,134 @@ pub enum PlanError {
 /// when no `## Batch N` heading exists; [`PlanError::ScenariosMissing`] when
 /// the section has no non-empty `Scenarios:` bullet list.
 pub fn batch_scenarios(path: &Path, batch: u32) -> Result<Vec<String>, PlanError> {
-    let text = std::fs::read_to_string(path).map_err(|source| PlanError::Read {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let section = batch_section(&text, batch).ok_or_else(|| PlanError::BatchMissing {
-        path: path.to_path_buf(),
-        batch,
-    })?;
-    let names = scenarios_list(section);
-    if names.is_empty() {
+    let section = parse_plan(path)?
+        .into_iter()
+        .find(|b| b.number == batch)
+        .ok_or_else(|| PlanError::BatchMissing {
+            path: path.to_path_buf(),
+            batch,
+        })?;
+    if section.scenarios.is_empty() {
         return Err(PlanError::ScenariosMissing {
             path: path.to_path_buf(),
             batch,
         });
     }
-    Ok(names)
+    Ok(section
+        .scenarios
+        .into_iter()
+        .map(|(_, name)| name)
+        .collect())
 }
 
-/// The lines of the `## Batch N` section (heading exclusive, next `## `
-/// heading exclusive), or `None` if the heading does not exist.
-fn batch_section(text: &str, batch: u32) -> Option<&str> {
-    let mut start = None;
-    for (offset, line) in line_offsets(text) {
-        let trimmed = line.trim_end();
+/// Every `## Batch N` section with its `Scenarios:` bullets. Any other
+/// `##`-prefixed heading closes the current section.
+#[must_use]
+pub fn batches(text: &str) -> Vec<PlanBatch> {
+    let mut out: Vec<PlanBatch> = Vec::new();
+    let mut in_batch = false;
+    let mut in_list = false;
+    for (idx, line) in text.lines().enumerate() {
+        let lineno = idx + 1;
+        let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("## ") {
-            if let Some(s) = start {
-                return Some(&text[s..offset]);
-            }
-            if is_batch_heading(rest, batch) {
-                start = Some(offset + line.len());
+            in_list = false;
+            in_batch = batch_number(rest).is_some_and(|number| {
+                out.push(PlanBatch {
+                    number,
+                    line: lineno,
+                    scenarios: Vec::new(),
+                });
+                true
+            });
+        } else if in_batch {
+            if in_list {
+                if let Some(bullet) = trimmed.strip_prefix("- ") {
+                    let name = bullet.trim().trim_matches('`').trim_matches('"').trim();
+                    // `in_batch` is only true right after a push above, so
+                    // `out.last_mut()` is always `Some` here.
+                    if let (false, Some(batch)) = (name.is_empty(), out.last_mut()) {
+                        batch.scenarios.push((lineno, name.to_owned()));
+                    }
+                } else if !trimmed.is_empty() {
+                    in_list = false; // list ended
+                }
+            } else if trimmed.starts_with("Scenarios:") {
+                in_list = true;
             }
         }
     }
-    start.map(|s| &text[s..])
+    out
 }
 
 /// `Batch N` optionally followed by punctuation/title (`## Batch 2 — ...`),
-/// but not `## Batch 21` when looking for batch 2.
-fn is_batch_heading(rest: &str, batch: u32) -> bool {
-    rest.strip_prefix("Batch ")
-        .and_then(|r| r.strip_prefix(&batch.to_string()))
-        .is_some_and(|after| !after.starts_with(|c: char| c.is_ascii_digit()))
+/// but never `## Batch 21` when the digits are `21`, not `2`.
+fn batch_number(rest: &str) -> Option<u32> {
+    let after = rest.strip_prefix("Batch ")?;
+    let digits: &str = &after[..after
+        .char_indices()
+        .find(|(_, c)| !c.is_ascii_digit())
+        .map_or(after.len(), |(i, _)| i)];
+    digits.parse().ok()
 }
 
-fn line_offsets(text: &str) -> impl Iterator<Item = (usize, &str)> {
-    text.split_inclusive('\n').scan(0, |offset, line| {
-        let start = *offset;
-        *offset += line.len();
-        Some((start, line))
-    })
-}
+/// Lint the plan's batch → scenario mapping against the spec inventory.
+///
+/// Errors: a listed scenario missing from the spec; a scenario assigned to
+/// two batches. Warning: a spec scenario assigned to no batch (coverage gap
+/// — reported, not fatal). Findings carry plan-file line numbers (0 for
+/// unassigned-scenario findings, which have no plan line).
+#[must_use]
+pub fn lint(plan_batches: &[PlanBatch], spec_scenarios: &[String]) -> Vec<Finding> {
+    let known: HashSet<&str> = spec_scenarios.iter().map(String::as_str).collect();
+    let mut assigned: HashMap<&str, u32> = HashMap::new();
+    let mut findings = Vec::new();
 
-/// The `- ` bullets directly under the section's `Scenarios:` line.
-fn scenarios_list(section: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut in_list = false;
-    for line in section.lines() {
-        let trimmed = line.trim();
-        if in_list {
-            if let Some(name) = trimmed.strip_prefix("- ") {
-                let name = name.trim().trim_matches('`').trim_matches('"').trim();
-                if !name.is_empty() {
-                    names.push(name.to_owned());
-                }
-            } else if !trimmed.is_empty() {
-                break; // list ended
+    for batch in plan_batches {
+        for (line, name) in &batch.scenarios {
+            if !known.contains(name.as_str()) {
+                findings.push(Finding::error(
+                    "unknown-scenario",
+                    *line,
+                    format!(
+                        "batch {} lists scenario {name:?} which is not in the spec — \
+                         plan drift; fix the plan (only the human changes the spec)",
+                        batch.number
+                    ),
+                ));
             }
-        } else if trimmed.starts_with("Scenarios:") {
-            in_list = true;
+            if let Some(&first) = assigned.get(name.as_str()) {
+                findings.push(Finding::error(
+                    "duplicate-assignment",
+                    *line,
+                    format!(
+                        "scenario {name:?} is already assigned to batch {first} — \
+                         a scenario belongs to at most one batch"
+                    ),
+                ));
+            } else {
+                assigned.insert(name, batch.number);
+            }
         }
     }
-    names
+
+    for name in spec_scenarios {
+        if !assigned.contains_key(name.as_str()) {
+            findings.push(Finding::warning(
+                "unassigned-scenario",
+                0,
+                format!("spec scenario {name:?} is not assigned to any plan batch"),
+            ));
+        }
+    }
+
+    findings
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::spec::Severity;
 
     const PLAN: &str = "\
 # Plan
@@ -177,5 +256,83 @@ No scenarios list here.
     fn missing_plan_file_is_an_error() {
         let err = batch_scenarios(Path::new("/nonexistent/PLAN.md"), 1).expect_err("no file");
         assert!(matches!(err, PlanError::Read { .. }), "{err}");
+    }
+
+    #[test]
+    fn batches_parses_every_section_with_lines() {
+        let all = batches(PLAN);
+        let numbers: Vec<u32> = all.iter().map(|b| b.number).collect();
+        assert_eq!(numbers, vec![1, 2, 21]);
+        assert_eq!(all[0].scenarios.len(), 2);
+        assert_eq!(all[0].scenarios[0], (6, "First behavior".to_owned()));
+        assert!(all[2].scenarios.is_empty());
+    }
+
+    #[test]
+    fn scenario_bullets_outside_a_batch_are_ignored() {
+        let text = "## Not a batch\n\nScenarios:\n- Stray behavior\n";
+        assert!(batches(text).is_empty());
+    }
+
+    fn rules(findings: &[Finding], severity: Severity) -> Vec<&'static str> {
+        findings
+            .iter()
+            .filter(|f| f.severity == severity)
+            .map(|f| f.rule)
+            .collect()
+    }
+
+    fn spec_names(names: &[&str]) -> Vec<String> {
+        names.iter().map(|&n| n.to_owned()).collect()
+    }
+
+    #[test]
+    fn lint_accepts_full_coverage() {
+        let findings = lint(
+            &batches(PLAN),
+            &spec_names(&["First behavior", "Second behavior", "Third behavior"]),
+        );
+        assert!(findings.is_empty(), "{findings:?}");
+    }
+
+    #[test]
+    fn lint_flags_scenarios_missing_from_the_spec() {
+        let findings = lint(&batches(PLAN), &spec_names(&["First behavior"]));
+        assert_eq!(
+            rules(&findings, Severity::Error),
+            vec!["unknown-scenario", "unknown-scenario"]
+        );
+        assert!(findings[0].message.contains("Second behavior"));
+    }
+
+    #[test]
+    fn lint_flags_a_scenario_assigned_twice() {
+        let plan =
+            "## Batch 1\n\nScenarios:\n- Same thing\n\n## Batch 2\n\nScenarios:\n- Same thing\n";
+        let findings = lint(&batches(plan), &spec_names(&["Same thing"]));
+        assert_eq!(
+            rules(&findings, Severity::Error),
+            vec!["duplicate-assignment"]
+        );
+        assert!(findings[0].message.contains("batch 1"));
+    }
+
+    #[test]
+    fn lint_reports_unassigned_spec_scenarios_as_warnings() {
+        let findings = lint(
+            &batches(PLAN),
+            &spec_names(&[
+                "First behavior",
+                "Second behavior",
+                "Third behavior",
+                "Orphan behavior",
+            ]),
+        );
+        assert_eq!(rules(&findings, Severity::Error), Vec::<&str>::new());
+        assert_eq!(
+            rules(&findings, Severity::Warning),
+            vec!["unassigned-scenario"]
+        );
+        assert!(findings[0].message.contains("Orphan behavior"));
     }
 }

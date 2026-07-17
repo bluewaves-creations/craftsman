@@ -52,3 +52,16 @@ Feature: Craftsman CLI core
     When I run craftsman with "spec status"
     Then the exit code is 3
     And the output contains "strict"
+
+  Scenario: Plan lint accepts a plan covering existing scenarios
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And its plan assigns batch 1 the scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "plan lint"
+    Then the exit code is 0
+
+  Scenario: Plan lint rejects a scenario missing from the spec
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And its plan assigns batch 1 the scenarios "First behavior" and "Ghost behavior"
+    When I run craftsman with "plan lint"
+    Then the exit code is 1
+    And the output contains "Ghost behavior"

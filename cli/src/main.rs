@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 
 use craftsman::config::Config;
+use craftsman::plan;
 use craftsman::spec::{self, Severity};
 use craftsman::verify::{self, Outcome, Selection};
 
@@ -37,6 +38,11 @@ enum Command {
     Spec {
         #[command(subcommand)]
         command: SpecCommand,
+    },
+    /// Plan engine: keep the batch → scenario mapping honest
+    Plan {
+        #[command(subcommand)]
+        command: PlanCommand,
     },
     /// THE gate: run SPEC.md scenarios via the stack adapter.
     ///
@@ -76,6 +82,20 @@ enum SpecCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum PlanCommand {
+    /// Validate the plan's batch → scenario mapping against the spec.
+    ///
+    /// Errors (exit 1): a batch lists a scenario missing from the spec;
+    /// a scenario is assigned to two batches. Warnings (still exit 0):
+    /// spec scenarios not assigned to any batch.
+    Lint {
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 fn main() {
     let cli = Cli::parse();
     let code = match run(&cli) {
@@ -93,6 +113,9 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::Spec { command } => match command {
             SpecCommand::Status { json } => spec_status(*json),
             SpecCommand::Lint { json } => spec_lint(*json),
+        },
+        Command::Plan { command } => match command {
+            PlanCommand::Lint { json } => plan_lint(*json),
         },
         Command::Verify {
             batch,
@@ -252,6 +275,57 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
         println!(
             "spec lint: {errors} error(s), {warnings} warning(s) in {}",
             loaded.config.project.spec
+        );
+    }
+    Ok(if errors > 0 {
+        EXIT_VERIFICATION_FAILURE
+    } else {
+        EXIT_PASS
+    })
+}
+
+fn plan_lint(json: bool) -> anyhow::Result<i32> {
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let loaded = Config::load(&cwd)?;
+    let feature = spec::parse_spec(&loaded.root.join(&loaded.config.project.spec))?;
+    let names: Vec<String> = spec::inventory(&feature)
+        .into_iter()
+        .map(|e| e.scenario)
+        .collect();
+    let plan_rel = loaded.config.project.plan;
+    let batches = plan::parse_plan(&loaded.root.join(&plan_rel))?;
+    let findings = plan::lint(&batches, &names);
+
+    let errors = findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .count();
+    let warnings = findings.len() - errors;
+    let assigned: usize = batches.iter().map(|b| b.scenarios.len()).sum();
+
+    if json {
+        let doc = serde_json::json!({
+            "plan": plan_rel,
+            "spec": loaded.config.project.spec,
+            "batches": batches.len(),
+            "assigned": assigned,
+            "findings": findings,
+            "errors": errors,
+            "warnings": warnings,
+        });
+        println!("{doc:#}");
+    } else {
+        for f in &findings {
+            let sev = match f.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            println!("{sev}[{}] line {}: {}", f.rule, f.line, f.message);
+        }
+        println!(
+            "plan lint: {errors} error(s), {warnings} warning(s) in {plan_rel} \
+             ({} batches, {assigned} scenario assignments)",
+            batches.len()
         );
     }
     Ok(if errors > 0 {
