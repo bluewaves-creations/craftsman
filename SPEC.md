@@ -65,3 +65,15 @@ Feature: Craftsman CLI core
     When I run craftsman with "plan lint"
     Then the exit code is 1
     And the output contains "Ghost behavior"
+
+  Scenario: Commit refuses when nothing is staged
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And the project is a fresh git repository
+    When I run craftsman with "commit --type chore --message tidy"
+    Then the exit code is 3
+    And the output contains "staged"
+
+  Scenario: Commit rejects an unknown type
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "commit --type vibes --message tidy"
+    Then the exit code is 2

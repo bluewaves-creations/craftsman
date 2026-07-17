@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 
 use craftsman::config::Config;
+use craftsman::ledger::{self, CommitRequest, CommitType};
 use craftsman::plan;
 use craftsman::spec::{self, Severity};
 use craftsman::verify::{self, Outcome, Selection};
@@ -56,6 +57,49 @@ enum Command {
         #[arg(long)]
         scenario: Option<String>,
         /// Emit the normalized results as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Structured ledger commit — the single writer of Verified-by.
+    ///
+    /// Commits exactly what is already staged (stage with `git add` first;
+    /// exit 3 when nothing is staged) and only after the gates are green
+    /// (exit 1 on a red gate, nothing committed). The Verified-by trailer
+    /// is written by the CLI alone — there is no flag to set it. Configure
+    /// an optional Co-Authored-By trailer via `[ledger] co-author` in
+    /// craftsman.toml.
+    Commit {
+        /// Conventional commit type
+        #[arg(long = "type", value_enum)]
+        commit_type: CommitType,
+        /// Optional scope, e.g. `batch-3` → `feat(batch-3): …`
+        #[arg(long)]
+        scope: Option<String>,
+        /// Commit subject line
+        #[arg(long)]
+        message: String,
+        /// Body line (repeatable, in order)
+        #[arg(long)]
+        body: Vec<String>,
+        /// Read the body from a file instead of --body lines
+        #[arg(long, conflicts_with = "body")]
+        body_file: Option<std::path::PathBuf>,
+        /// `Scenarios:` trailer value (repeatable)
+        #[arg(long)]
+        scenarios: Vec<String>,
+        /// `Learned:` trailer value (repeatable)
+        #[arg(long)]
+        learned: Vec<String>,
+        /// `Rejected:` trailer value (repeatable)
+        #[arg(long)]
+        rejected: Vec<String>,
+        /// `Ref:` trailer value (repeatable)
+        #[arg(long = "ref")]
+        refs: Vec<String>,
+        /// `Dependency:` trailer value (repeatable)
+        #[arg(long)]
+        dependency: Vec<String>,
+        /// Emit {committed, sha, gates} as JSON on stdout
         #[arg(long)]
         json: bool,
     },
@@ -122,6 +166,78 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
             scenario,
             json,
         } => verify_cmd(*batch, scenario.as_deref(), *json),
+        Command::Commit {
+            commit_type,
+            scope,
+            message,
+            body,
+            body_file,
+            scenarios,
+            learned,
+            rejected,
+            refs,
+            dependency,
+            json,
+        } => {
+            let body = match body_file {
+                Some(path) => std::fs::read_to_string(path)
+                    .with_context(|| format!("cannot read --body-file {}", path.display()))?
+                    .lines()
+                    .map(str::to_owned)
+                    .collect(),
+                None => body.clone(),
+            };
+            let request = CommitRequest {
+                commit_type: *commit_type,
+                scope: scope.clone(),
+                subject: message.clone(),
+                body,
+                scenarios: scenarios.clone(),
+                learned: learned.clone(),
+                rejected: rejected.clone(),
+                refs: refs.clone(),
+                dependencies: dependency.clone(),
+            };
+            commit_cmd(&request, *json)
+        }
+    }
+}
+
+fn commit_cmd(request: &CommitRequest, json: bool) -> anyhow::Result<i32> {
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let report = ledger::commit(&cwd, request)?;
+
+    for g in &report.gates {
+        if g.passed {
+            eprintln!("gate {}: ok ({})", g.gate, g.detail);
+        } else {
+            eprintln!("gate {} FAILED:\n{}", g.gate, g.detail);
+        }
+    }
+    if json {
+        let doc = serde_json::json!({
+            "committed": report.committed,
+            "sha": report.sha,
+            "subject": report.subject,
+            "gates": report.gates,
+        });
+        println!("{doc:#}");
+    }
+    if report.committed {
+        let sha = report.sha.as_deref().unwrap_or("");
+        let short = &sha[..sha.len().min(9)];
+        eprintln!("committed {short} {}", report.subject);
+        Ok(EXIT_PASS)
+    } else {
+        let red = report
+            .gates
+            .iter()
+            .filter(|g| !g.passed)
+            .map(|g| g.gate)
+            .collect::<Vec<_>>()
+            .join(", ");
+        eprintln!("commit refused — red gate: {red} (nothing committed)");
+        Ok(EXIT_VERIFICATION_FAILURE)
     }
 }
 

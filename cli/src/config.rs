@@ -71,6 +71,8 @@ pub struct Config {
     pub budgets: toml::Table,
     #[serde(default)]
     pub docs: Docs,
+    #[serde(default)]
+    pub ledger: Ledger,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,6 +133,17 @@ pub struct Gates {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Docs {
     pub cache: Option<String>,
+}
+
+/// `craftsman commit` settings. Committed config, not environment: the
+/// co-author attribution is part of the project contract and reviewable
+/// like the rest of `craftsman.toml`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Ledger {
+    /// `Name <email>` written as a `Co-Authored-By:` trailer on every
+    /// ledger commit; omit the key to omit the trailer.
+    pub co_author: Option<String>,
 }
 
 /// A successfully loaded config plus where it was found.
@@ -254,6 +267,9 @@ mod tests {
 
             [docs]
             cache = ".craftsman/docs"
+
+            [ledger]
+            co-author = "Claude Fable 5 <noreply@anthropic.com>"
             "#,
         )
         .expect("documented example must parse");
@@ -262,6 +278,16 @@ mod tests {
         assert_eq!(c.gates.tools["gitleaks"], "8.24.0");
         assert_eq!(c.verify.runner_target.as_deref(), Some("spec"));
         assert_eq!(c.docs.cache.as_deref(), Some(".craftsman/docs"));
+        assert_eq!(
+            c.ledger.co_author.as_deref(),
+            Some("Claude Fable 5 <noreply@anthropic.com>")
+        );
+    }
+
+    #[test]
+    fn ledger_co_author_defaults_to_absent() {
+        let c = parse(MINIMAL).expect("minimal config must parse");
+        assert_eq!(c.ledger.co_author, None);
     }
 
     #[test]

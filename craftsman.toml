@@ -13,3 +13,6 @@ cwd = "cli"
 [gates]
 verify = "strict"
 lint = "strict"
+
+[ledger]
+co-author = "Claude Fable 5 <noreply@anthropic.com>"

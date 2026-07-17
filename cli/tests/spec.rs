@@ -116,6 +116,17 @@ fn empty_project_directory(w: &mut CliWorld) {
     let _ = w.project_dir();
 }
 
+#[given("the project is a fresh git repository")]
+fn fresh_git_repository(w: &mut CliWorld) {
+    let dir = w.project_dir();
+    let status = Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&dir)
+        .status()
+        .expect("spawn git init");
+    assert!(status.success(), "git init failed in {}", dir.display());
+}
+
 #[when(expr = "I run craftsman with {string}")]
 fn run_with_args(w: &mut CliWorld, args: String) {
     let args: Vec<&str> = args.split_whitespace().collect();
