@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="TestResults" errors="0" tests="3" failures="1" skipped="0" time="0.000791584">
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Completing a todo moves it to done`()" time="0.000160917" />
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Adding a todo shows it in the list`()" time="0.000409417" >
+      <failure message="Expectation failed: (list.todos &#8594; [&quot;Buy milk&quot;]).contains(title &#8594; &quot;Buy oat milk&quot;) (error): expected list to contain Buy oat milk" />
+    </testcase>
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Rejecting an invalid quantity keeps the cart unchanged`(quantity:reason:)" time="0.000394375" />
+  </testsuite>
+</testsuites>

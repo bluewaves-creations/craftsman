@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="TestResults" errors="0" tests="3" failures="0" skipped="0" time="0.000508125">
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Rejecting an invalid quantity keeps the cart unchanged`(quantity:reason:)" time="0.000202417" />
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Completing a todo moves it to done`()" time="0.000155" />
+    <testcase classname="SpecSpikeTests.TodoManagementFeature" name="`Adding a todo shows it in the list`()" time="0.000157333" />
+  </testsuite>
+</testsuites>
