@@ -9,6 +9,7 @@ use clap::{Parser, Subcommand};
 
 use craftsman::config::Config;
 use craftsman::spec::{self, Severity};
+use craftsman::verify::{self, Outcome, Selection};
 
 /// Exit codes are a documented contract (design doc):
 /// 0 pass · 1 verification failure · 2 usage error (clap's default) ·
@@ -16,6 +17,7 @@ use craftsman::spec::{self, Severity};
 const EXIT_PASS: i32 = 0;
 const EXIT_VERIFICATION_FAILURE: i32 = 1;
 const EXIT_ORCHESTRATOR_ERROR: i32 = 3;
+const EXIT_EMPTY_SELECTION: i32 = 4;
 
 /// The Craftsman Dev CLI — mechanical verification for agentic development.
 ///
@@ -35,6 +37,21 @@ enum Command {
     Spec {
         #[command(subcommand)]
         command: SpecCommand,
+    },
+    /// THE gate: run SPEC.md scenarios via the stack adapter.
+    ///
+    /// Exit codes: 0 all passed · 1 any failed/undefined/ambiguous ·
+    /// 3 tool or config error · 4 selection matched no scenarios.
+    Verify {
+        /// Run only the scenarios listed under `## Batch N` in the plan
+        #[arg(long, conflicts_with = "scenario")]
+        batch: Option<u32>,
+        /// Run a single scenario by exact name
+        #[arg(long)]
+        scenario: Option<String>,
+        /// Emit the normalized results as JSON on stdout
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -77,7 +94,67 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
             SpecCommand::Status { json } => spec_status(*json),
             SpecCommand::Lint { json } => spec_lint(*json),
         },
+        Command::Verify {
+            batch,
+            scenario,
+            json,
+        } => verify_cmd(*batch, scenario.as_deref(), *json),
     }
+}
+
+fn verify_cmd(batch: Option<u32>, scenario: Option<&str>, json: bool) -> anyhow::Result<i32> {
+    let selection = match (batch, scenario) {
+        (Some(n), _) => Selection::Batch(n),
+        (None, Some(name)) => Selection::Scenario(name.to_owned()),
+        (None, None) => Selection::All,
+    };
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let report = verify::run(&cwd, &selection)?;
+
+    for w in &report.warnings {
+        eprintln!("warning: {w}");
+    }
+    for r in &report.results {
+        let mark = match r.status {
+            craftsman::verify::normalize::Status::Passed => "pass",
+            craftsman::verify::normalize::Status::Skipped => "skip",
+            craftsman::verify::normalize::Status::Pending => "pend",
+            craftsman::verify::normalize::Status::Undefined => "unde",
+            craftsman::verify::normalize::Status::Ambiguous => "ambi",
+            craftsman::verify::normalize::Status::Failed => "FAIL",
+        };
+        eprintln!("  {mark}  {}", r.scenario);
+        if let Some(failure) = &r.failure {
+            for line in failure.lines() {
+                eprintln!("        {line}");
+            }
+        }
+    }
+    let c = report.counts;
+    eprintln!(
+        "verify: {} passed, {} failed, {} undefined, {} ambiguous, {} skipped, {} pending",
+        c.passed, c.failed, c.undefined, c.ambiguous, c.skipped, c.pending
+    );
+
+    if json {
+        let doc = serde_json::json!({
+            "gate": "verify",
+            "status": report.outcome,
+            "scenarios": report.counts,
+            "results": report.results,
+            "warnings": report.warnings,
+        });
+        println!("{doc:#}");
+    }
+
+    Ok(match report.outcome {
+        Outcome::Passed => EXIT_PASS,
+        Outcome::Failed => EXIT_VERIFICATION_FAILURE,
+        Outcome::EmptySelection => {
+            eprintln!("verify: selection matched no scenarios (exit 4 — never silent success)");
+            EXIT_EMPTY_SELECTION
+        }
+    })
 }
 
 /// Load config + spec relative to the config root.
