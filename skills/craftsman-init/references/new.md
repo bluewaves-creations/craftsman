@@ -19,7 +19,7 @@ Loaded to bring an empty or new repository under Craftsman. Outcome: a repo wher
 
 4. **Verify harness.** Wire the stack's runner (pytest-bdd scaffold, cucumber-js config, `spec gen` target for Swift/bash). Create one trivial walking-skeleton scenario in SPEC.md (human approves even this one).
 
-5. **Harness wiring.** Hooks where supported (Claude Code, Cursor): gate-enforcement templates. `CLAUDE.md` as a symlink to `AGENTS.md` — the single tolerated harness artifact. Apple project: probe `xcrun agent skills export`; on success install Apple's skills and record the delegation in AGENTS.md.
+5. **Harness wiring.** Hooks where supported (Claude Code, Cursor): gate-enforcement templates. `CLAUDE.md` as a symlink to `AGENTS.md` — the single tolerated harness artifact. Apple project: run `xcrun mcpbridge run-agent skills export --output-dir ~/.agents/skills --replace-existing` (verified command, Xcode 27); on success record the delegation in AGENTS.md.
 
 6. **Prove the loop.** `craftsman doctor`: config valid, tools resolve, and the walking-skeleton scenario observed red → implemented → green through `craftsman verify`. A bootstrap that never saw red has proven nothing.
 

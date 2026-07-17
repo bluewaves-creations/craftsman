@@ -64,7 +64,7 @@ Throw typed errors (`enum` per subsystem conforming to `Error`, with associated 
 
 ## Apple projects
 
-- If Apple's exported Xcode skills are installed (probe: `xcrun agent skills export` succeeds, skills present in the agent's skills directory), **defer to them** for SwiftUI and testing idiom — `swiftui-specialist`, `swiftui-whats-new-27`, `test-modernizer` are Apple-maintained and outrank this file on those topics. Do not restate or contradict them.
+- If Apple's exported Xcode skills are installed (probe: skills present in the agent's skills directory; export with `xcrun mcpbridge run-agent skills export --output-dir ~/.agents/skills --replace-existing`), **defer to them** for SwiftUI and testing idiom — `swiftui-specialist`, `swiftui-whats-new-27`, `modernize-tests` are Apple-maintained and outrank this file on those topics. Do not restate or contradict them.
 - The verification surface is headless: `xcodebuild test` / `swift test` exit codes, `xcresulttool get test-results` JSON as evidence. Never depend on the IDE — `mcpbridge`, `device-interaction`, and anything requiring a running Xcode window are opportunistic extras, not gates.
 - Tests are Swift Testing (`@Test`, `#expect`, parameterized `arguments:`), not new XCTest. UI automation remains XCTest-side; `performAccessibilityAudit()` belongs in every UI test target.
 - On Linux/SwiftPM the same rules apply minus the Apple sections; `swift test --parallel` is the whole verification surface.

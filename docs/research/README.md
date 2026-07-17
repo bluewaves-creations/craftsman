@@ -70,7 +70,7 @@ Verification spikes (small experiments during early build):
 5. `swift test --experimental-event-stream-output` behavior on Linux (verified on macOS only).
 6. The Gherkin → Swift Testing code generator — highest-risk component, prototype first.
 7. DocC `--enable-experimental-markdown-output` API stability before building the Swift doc cache on it.
-8. Exact `xcrun agent skills export` flag shape and Apple skill-name stability across Xcode 27 betas.
+8. ~~Exact export flag shape and Apple skill-name stability~~ **Resolved 2026-07-18 on Xcode 27 GA**: command is `xcrun mcpbridge run-agent skills export [--output-dir <path>] [--replace-existing]` (default `./xcode-skills`); seven skills confirmed, two names differ from beta coverage — `modernize-tests` (not `test-modernizer`) and `adopt-c-bounds-safety` (not `c-bounds-safety`). Exports are spec-conformant SKILL.md + references/; `device-interaction` self-declares as a subagent skill requiring an Xcode session (IDE-bound confirmed).
 
 Watch items (external, recheck before 1.0):
 

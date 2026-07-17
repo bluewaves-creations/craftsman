@@ -34,7 +34,7 @@ If the repo already has a `craftsman.toml`, `new` is wrong — confirm whether t
 
 - **AGENTS.md is observed, not inferred.** Every line is either a command you executed successfully or a fact the human attested in the interview. Inferred architecture goes into a separate, labeled research doc — never into AGENTS.md. Enforce the length budget (`budgets.tokens.agents-md-lines` in craftsman.toml, default 100).
 - **The loop must close.** No gear finishes until `craftsman doctor` passes: config valid, tools present, and one trivial scenario proven red → green through `craftsman verify`.
-- **Apple projects**: probe `xcrun agent skills export` — if it succeeds, install Apple's skills alongside the Craftsman family and record the delegation in AGENTS.md ("SwiftUI/testing idiom: defer to Apple's skills").
+- **Apple projects**: probe `xcrun mcpbridge run-agent skills export --output-dir ~/.agents/skills --replace-existing` — if it succeeds, Apple's seven skills install alongside the Craftsman family; record the delegation in AGENTS.md ("SwiftUI/testing idiom: defer to Apple's skills").
 - **Harness wiring**: where the harness supports hooks (Claude Code, Cursor), write the gate-enforcement hook templates. Where it doesn't, note in AGENTS.md that `craftsman commit` and CI are the enforcement points.
 - Not a git repo → offer `git init` first; the ledger needs git.
 

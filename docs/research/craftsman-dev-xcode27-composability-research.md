@@ -2,6 +2,8 @@
 
 > How Craftsman Dev composes with Apple's agentic toolchain — Xcode 27's bundled Agent Skills, the MCP bridge, Device Hub, and the CLI verification surface — evaluated against what actually shipped as of July 2026, with confirmed facts separated from unverified claims.
 
+> **Correction (2026-07-18, verified on Xcode 27 GA on this machine):** the export command is `xcrun mcpbridge run-agent skills export [--output-dir] [--replace-existing]`, and two skills ship under different names than beta coverage reported: `modernize-tests` (not `test-modernizer`) and `adopt-c-bounds-safety` (not `c-bounds-safety`). Everything else in the skills table held.
+
 ---
 
 ## The Question
