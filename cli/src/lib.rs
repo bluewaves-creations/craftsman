@@ -2,6 +2,7 @@
 //! binary. Library modules use `thiserror`; `anyhow` lives only in `main.rs`.
 
 pub mod config;
+pub mod doctor;
 pub mod ledger;
 pub mod plan;
 pub mod spec;

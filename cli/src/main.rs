@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 
 use craftsman::config::Config;
+use craftsman::doctor;
 use craftsman::ledger::{self, CommitRequest, CommitType};
 use craftsman::plan;
 use craftsman::spec::{self, Severity};
@@ -100,6 +101,16 @@ enum Command {
         #[arg(long)]
         dependency: Vec<String>,
         /// Emit {committed, sha, gates} as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Prove the loop closes: config, spec, plan, tools, and a red→green
+    /// verify round trip in a disposable fixture project.
+    ///
+    /// The fixture is cached under the system temp dir; the first run
+    /// compiles its cucumber harness and may take minutes.
+    Doctor {
+        /// Emit per-check results as JSON on stdout
         #[arg(long)]
         json: bool,
     },
@@ -200,7 +211,33 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
             };
             commit_cmd(&request, *json)
         }
+        Command::Doctor { json } => doctor_cmd(*json),
     }
+}
+
+fn doctor_cmd(json: bool) -> anyhow::Result<i32> {
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let checks = doctor::run(&cwd);
+    let passed = checks.iter().all(|c| c.passed);
+
+    for c in &checks {
+        let mark = if c.passed { "ok  " } else { "FAIL" };
+        println!("{mark}  {:<10}  {}", c.name, c.detail);
+    }
+    println!(
+        "doctor: {}/{} checks passed",
+        checks.iter().filter(|c| c.passed).count(),
+        checks.len()
+    );
+    if json {
+        let doc = serde_json::json!({ "passed": passed, "checks": checks });
+        println!("{doc:#}");
+    }
+    Ok(if passed {
+        EXIT_PASS
+    } else {
+        EXIT_VERIFICATION_FAILURE
+    })
 }
 
 fn commit_cmd(request: &CommitRequest, json: bool) -> anyhow::Result<i32> {
