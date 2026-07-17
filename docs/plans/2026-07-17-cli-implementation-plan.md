@@ -66,8 +66,15 @@ Scenarios:
 
 ## Batch 3 — Ledger + plan + doctor
 
-- [ ] `commit` (refuses on red `check-all --changed` — initially just verify+fmt+clippy as the enabled gates; writes trailers incl. `Verified-by:`), `plan lint` (batch→scenario mapping), `doctor` (config, tools, red→green round trip in a temp fixture project).
-- [ ] From this batch on, every commit in this repo goes through `cargo run -- commit`.
+- [x] `commit` (refuses on red `check-all --changed` — initially just verify+fmt+clippy as the enabled gates; writes trailers incl. `Verified-by:`), `plan lint` (batch→scenario mapping), `doctor` (config, tools, red→green round trip in a temp fixture project).
+- [x] From this batch on, every commit in this repo goes through `cargo run -- commit`.
+- Notes: co-author attribution is `[ledger] co-author` in craftsman.toml (committed config, one mechanism, no env var). fmt+clippy run when staged files touch the rust stack root (`[verify] cwd`); Batch 6's declarative gate adapters replace the hard-coded pair. Doctor's round-trip fixture is cached at `$TMPDIR/craftsman-doctor-fixture` (~15s cold / ~2s cached on this machine), so the round trip runs as a normal test in `cli/tests/doctor.rs` — the planned CRAFTSMAN_E2E escape hatch was not needed, and Batch 2's honest-undone exit-1 e2e gap is closed.
+
+Scenarios:
+- Plan lint accepts a plan covering existing scenarios
+- Plan lint rejects a scenario missing from the spec
+- Commit refuses when nothing is staged
+- Commit rejects an unknown type
 
 ## Batch 4 — Python + TypeScript adapters, `--impact`
 
