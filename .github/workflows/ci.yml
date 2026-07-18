@@ -21,6 +21,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
+      # uv and bun are the house toolchains (AGENTS.md): the pytest-bdd and
+      # cucumber-js adapter tests spawn `uv run pytest` / `bun install`, and
+      # the security gate resolves semgrep via uvx. First CI run (29645178773)
+      # failed for exactly this absence.
+      - uses: astral-sh/setup-uv@v7
+      - uses: oven-sh/setup-bun@v2
       # bats-core powers the bash round-trip tests in tests/codegen.rs
       # (which self-skip, loudly, when bats is absent).
       - name: Install bats
