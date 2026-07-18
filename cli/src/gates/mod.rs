@@ -19,6 +19,7 @@ pub mod baseline;
 pub mod check_all;
 pub mod health;
 pub mod lint;
+pub mod mutate;
 pub mod security;
 pub mod tools;
 
@@ -172,6 +173,12 @@ pub enum GateError {
          prefixes relative to the stack root"
     )]
     BadArchRule { rule: String },
+    #[error(
+        "mutation testing is not supported for stack {stack} — no \
+         production-consensus tool exists (research doc: swift/bash gap); \
+         refusing to report green on unverified tests"
+    )]
+    MutateUnsupported { stack: String },
 }
 
 /// FNV-1a 64-bit — a deterministic, dependency-free content hash for
