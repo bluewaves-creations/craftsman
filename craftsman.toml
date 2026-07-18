@@ -14,7 +14,7 @@ cwd = "cli"
 verify = "strict"
 lint = "strict"
 arch = "strict"
-security = "baseline"
+security = "strict"
 health = "baseline"
 # spikes are frozen evidence, not shipped code
 exclude = ["spikes/**"]
