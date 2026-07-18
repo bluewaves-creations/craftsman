@@ -270,7 +270,8 @@ fn verified_by(gates: &[GateRun]) -> Option<String> {
 }
 
 /// Run git in `dir`, returning stdout; any non-zero exit is an error.
-fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, LedgerError> {
+/// Shared with `adr` (Batch 7) — one git plumbing helper, not two.
+pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, LedgerError> {
     let output = Command::new("git")
         .args(args)
         .current_dir(dir)
