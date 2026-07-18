@@ -25,15 +25,19 @@ fn swift_version() -> Option<(u32, u32)> {
     Some((major, minor))
 }
 
-/// xcodebuild runnable (macOS with Xcode selected).
+/// xcodebuild runnable AND the selected toolchain ≥ 6.2 — the generated
+/// UI tests use SE-0451 raw identifiers, so a runnable xcodebuild with an
+/// older Swift (CI's Xcode 16.4 / Swift 6.1) still cannot build them
+/// (observed on CI run 29663007111: probe passed, build failed).
 pub fn xcode() -> bool {
     static PROBE: OnceLock<bool> = OnceLock::new();
     // xcodebuild spells it `-version` (single dash).
     *PROBE.get_or_init(|| {
-        Command::new("xcodebuild")
-            .arg("-version")
-            .output()
-            .is_ok_and(|o| o.status.success())
+        swift()
+            && Command::new("xcodebuild")
+                .arg("-version")
+                .output()
+                .is_ok_and(|o| o.status.success())
     })
 }
 
