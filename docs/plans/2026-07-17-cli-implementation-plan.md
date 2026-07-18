@@ -146,8 +146,17 @@ Scenarios:
 
 ## Batch 8 — Bootstrap + distribution + hardening
 
-- [ ] `init` (interview scaffolding output, harness wiring templates incl. hooks + CLAUDE.md symlink), `adopt` (phase state machine), `setup` (embedded skills via include_dir + Fusion agent table), `update`; cargo-dist config + install.sh; exit-code/JSON contract test sweep across every command; `--help` audit (agent-grade help per command).
-- [ ] Finish: full `check-all` green on craftsman itself, README, tagged 0.1.0 release.
+- [x] `init` (non-interactive scaffold: craftsman.toml verify+lint strict / security baseline, AGENTS.md skeleton with budget marker, walking-skeleton SPEC.md, .craftsman/ dirs, merged .gitignore, CLAUDE.md symlink with pointer-file fallback, hook templates), `adopt` (five-phase state machine in .craftsman/adoption.toml, sequencing enforced, transitions record timestamp+HEAD; phase 1 writes gates-off config + ADR-000, phase 2 records baselines, 0/3/4 state-only), `setup` (six skills embedded via include_dir, canonical ~/.agents/skills + Fusion agent table; attribution-checked never-destroy via .craftsman-setup sha256 sentinels; --remove mirrors, --status reports; conventions byte-identity test-enforced), `update` (honest team-local: version + skill refresh + reinstall pointer).
+- [x] cargo-dist config (real `dist init`, cargo-dist 0.32.0 pinned, dist-workspace.toml, three targets) + install.sh (67 lines, POSIX) + `--version` git sha via build.rs; CI gains an uncached `check-all` step with ~/.craftsman/tools cached on the pins.
+- [x] Contract sweep (cli/tests/contract.rs): --help everywhere, exit-code docs on verdict commands, bad flag → 2, missing config → 3, offline happy paths parse as JSON. Audit fixes: --json added to gate baseline/strict + docs get; exit-code docs added to security/doctor/gate baseline; stdout/stderr mixing fixed in gate status, doctor, docs status, docs search. The known 6b nit reconciled: health said "42 baselined" vs gate status 41 — 41 was true (two identical findings collide into one fingerprint; baselined now counts distinct fingerprints, one unit both places).
+- [x] Finish: full `cargo test` + uncached `check-all` green, README (~120 lines, install + tour + gate table), adr index regenerated, tagged v0.1.0 (annotated, not pushed).
+- Notes: the Claude Code hooks JSON shape was verified against working settings.json files on this machine (top-level `hooks` → event → matcher groups → command hooks); Cursor's could not be verified from an offline docs source, so init ships an inert `.cursor/craftsman-hooks.json.template` with a note — never an invented schema. `dist generate` (release.yml) is deferred until the repo has a GitHub remote (it requires a repository URL); the config is committed and pinned. `dist init --yes` ignored the `-t` flags — targets trimmed by hand. Setup is stricter than Fusion's original: canonical trees are replaced only with sentinel/digest proof, so even a user-modified canonical copy survives without --force.
+
+Scenarios:
+- Init scaffolds a project that doctor accepts
+- Init refuses to overwrite without force
+- Setup installs skills with attribution sentinels
+- Adopt enforces phase ordering
 
 ---
 
