@@ -102,6 +102,14 @@ pub fn self_update(current: &str) -> Result<SelfUpdate, UpdateError> {
         Err(e) => return Err(UpdateError::Environment(e)),
     }
     let channel = channel_name(&updater);
+    // Private release channels: honor the same token variable the
+    // cargo-dist shell installer reads, so one export serves install,
+    // update check, and the spawned installer alike.
+    if let Ok(token) = std::env::var("CRAFTSMAN_GITHUB_TOKEN")
+        && !token.is_empty()
+    {
+        updater.set_github_token(&token);
+    }
 
     if !updater
         .check_receipt_is_for_this_executable()
@@ -123,6 +131,19 @@ pub fn self_update(current: &str) -> Result<SelfUpdate, UpdateError> {
     updater.disable_installer_stdout();
     updater.enable_installer_stderr();
 
+    check_and_run(updater, channel, current)
+}
+
+/// Query the channel and, when a newer release exists, install it.
+#[allow(
+    clippy::result_large_err,
+    reason = "same axoupdater error payloads as self_update, same cold path"
+)]
+fn check_and_run(
+    mut updater: AxoUpdater,
+    channel: String,
+    current: &str,
+) -> Result<SelfUpdate, UpdateError> {
     let needed =
         updater
             .is_update_needed_sync()
