@@ -2,20 +2,10 @@
 //! scenarios (Batch 11): baseline blocking/ratchet semantics, the strict
 //! flip, gate status, allow directives, duplication, and the round trip.
 
-use std::process::Command;
-
 use cucumber::{given, then, when};
 
-use crate::CliWorld;
-
-fn git(dir: &std::path::Path, args: &[&str]) {
-    let status = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .status()
-        .expect("spawn git");
-    assert!(status.success(), "git {args:?} failed in {}", dir.display());
-}
+use crate::fixtures::git;
+use crate::{CliWorld, fixtures};
 
 /// A function body longer than the fixture limit (max-function-lines 5).
 fn long_fn(name: &str) -> String {
@@ -34,15 +24,8 @@ fn gate_with_two_baselined_findings(w: &mut CliWorld) {
     w.write("src/alpha.rs", &long_fn("alpha"));
     w.write("src/beta.rs", &long_fn("beta"));
     w.write(".gitignore", ".craftsman/\n");
-    git(&dir, &["init", "--quiet"]);
-    git(&dir, &["add", "-A"]);
-    w.run_craftsman(&["gate", "baseline", "health"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "recording the baseline must pass:\n{}",
-        w.combined_output()
-    );
+    fixtures::git_init_add(&dir);
+    w.prime(&["gate", "baseline", "health"]);
     assert_eq!(baseline_entries(w), 2, "the baseline must hold 2 entries");
 }
 
@@ -71,19 +54,8 @@ fn code_with_only_one_finding(w: &mut CliWorld) {
 #[given("a changed-scope run produces no findings")]
 fn changed_scope_clean(w: &mut CliWorld) {
     let dir = w.project_dir();
-    git(
-        &dir,
-        &[
-            "-c",
-            "user.name=fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "--quiet",
-            "-m",
-            "inherited debt",
-        ],
-    );
+    fixtures::git_identity(&dir);
+    git(&dir, &["commit", "--quiet", "-m", "inherited debt"]);
     w.write("src/innocent.rs", "pub fn innocent() {}\n");
     git(&dir, &["add", "-A"]);
 }
@@ -153,8 +125,7 @@ fn arch_baseline_zero_debt(w: &mut CliWorld) {
     std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
     w.write("src/lib.rs", "pub fn tidy() {}\n");
     w.write(".gitignore", ".craftsman/\n");
-    git(&dir, &["init", "--quiet"]);
-    git(&dir, &["add", "-A"]);
+    fixtures::git_init_add(&dir);
 }
 
 #[then("the config line for the arch gate now reads strict")]
@@ -214,8 +185,7 @@ fn health_project_with(w: &mut CliWorld, source: &str) {
     std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
     w.write("src/lib.rs", source);
     w.write(".gitignore", ".craftsman/\n");
-    git(&dir, &["init", "--quiet"]);
-    git(&dir, &["add", "-A"]);
+    fixtures::git_init_add(&dir);
 }
 
 #[given(
@@ -283,8 +253,7 @@ fn two_files_with_shared_block(w: &mut CliWorld) {
     w.write("src/dup_a.rs", block);
     w.write("src/dup_b.rs", &format!("// twin copy\n{block}"));
     w.write(".gitignore", ".craftsman/\n");
-    git(&dir, &["init", "--quiet"]);
-    git(&dir, &["add", "-A"]);
+    fixtures::git_init_add(&dir);
 }
 
 #[then("one duplication finding names both locations")]
@@ -312,13 +281,7 @@ fn project_with_tools_installed(w: &mut CliWorld) {
         "CRAFTSMAN_TOOLS_DIR".to_owned(),
         tools.display().to_string(),
     ));
-    w.run_craftsman(&["init", "--name", "demo", "--stack", "rust"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming init must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["init", "--name", "demo", "--stack", "rust"]);
 }
 
 #[then("the round-trip check reports both a red and a green observation")]

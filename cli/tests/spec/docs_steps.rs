@@ -33,15 +33,9 @@ fn project_with_file_source(w: &mut CliWorld) {
     bare_project(w);
     std::fs::create_dir_all(w.project_dir().join("docs-src")).expect("mkdirs");
     w.write("docs-src/guide.md", "# Guide\n\nLocal truth lives here.\n");
-    w.run_craftsman(&[
+    w.prime(&[
         "docs", "add", "local", "--source", "file", "--path", "docs-src",
     ]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming docs add must pass:\n{}",
-        w.combined_output()
-    );
 }
 
 #[when("the source is synced and then searched for its content")]
@@ -138,13 +132,7 @@ fn cache_at_version_1(w: &mut CliWorld) {
         ".craftsman/docs/manifest.json",
         &file_source_manifest("1.0.0"),
     );
-    w.run_craftsman(&["docs", "sync", "demo"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming sync must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["docs", "sync", "demo"]);
     assert!(
         w.project_dir().join(".craftsman/docs/demo@1.0.0").is_dir(),
         "the 1.0.0 cache must exist after the priming sync"
@@ -157,13 +145,7 @@ fn sync_version_2(w: &mut CliWorld) {
         ".craftsman/docs/manifest.json",
         &file_source_manifest("2.0.0"),
     );
-    w.run_craftsman(&["docs", "sync", "demo"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "sync of 2.0.0 must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["docs", "sync", "demo"]);
 }
 
 #[then("the cache holds version 2.0.0")]
@@ -219,13 +201,7 @@ fn synced_objects_inv_with_on_demand_page(w: &mut CliWorld) {
         vec!["docs", "sync"],
         vec!["docs", "get", "mylib/mylib.core"],
     ] {
-        w.run_craftsman(&args);
-        assert_eq!(
-            w.output().status.code(),
-            Some(0),
-            "priming {args:?} must pass:\n{}",
-            w.combined_output()
-        );
+        w.prime(&args);
     }
 }
 
@@ -259,7 +235,7 @@ const LIVE_LLMS_INDEX: &str =
 #[given("a craftsman project with an llms-txt docs source for a live library")]
 fn project_with_live_llms_source(w: &mut CliWorld) {
     bare_project(w);
-    w.run_craftsman(&[
+    w.prime(&[
         "docs",
         "add",
         "cucumber-book",
@@ -268,12 +244,6 @@ fn project_with_live_llms_source(w: &mut CliWorld) {
         "--url",
         LIVE_LLMS_INDEX,
     ]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming docs add must pass:\n{}",
-        w.combined_output()
-    );
 }
 
 #[when("I run craftsman docs sync for that library")]
@@ -300,11 +270,5 @@ fn cached_pages_searchable(w: &mut CliWorld) {
         .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
         .count();
     assert!(md > 0, "no markdown pages under {}", pages.display());
-    w.run_craftsman(&["docs", "search", "cucumber"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "offline search must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["docs", "search", "cucumber"]);
 }

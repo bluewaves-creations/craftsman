@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use cucumber::{given, then};
 
-use crate::CliWorld;
+use crate::{CliWorld, fixtures};
 
 const PACKAGE_SWIFT: &str = r#"// swift-tools-version: 6.0
 import PackageDescription
@@ -31,7 +31,7 @@ const OVERSHOOTING_STEPS: &str = "import Testing\n\nstruct SpecSteps {\n    var 
     "a swift-stack craftsman project with generated scenarios whose step asserts a counter holds 2"
 )]
 fn swift_project_with_generated_scenarios(w: &mut CliWorld) {
-    let dir = std::env::temp_dir().join("craftsman-spec-swift-red-fixture");
+    let dir = fixtures::stable_dir("craftsman-spec-swift-red-fixture");
     std::fs::create_dir_all(dir.join("Sources/Fixture")).expect("mkdirs");
     let write = |rel: &str, content: &str| {
         std::fs::write(dir.join(rel), content).unwrap_or_else(|e| panic!("write {rel}: {e}"));
@@ -46,15 +46,9 @@ fn swift_project_with_generated_scenarios(w: &mut CliWorld) {
         "Sources/Fixture/Fixture.swift",
         "public struct Fixture {}\n",
     );
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    fixtures::scrub(&dir, &[".craftsman"]);
     w.fixed_dir = Some(dir);
-    w.run_craftsman(&["spec", "gen"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming spec gen must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["spec", "gen"]);
 }
 
 #[given("the step implementation makes the counter hold 3")]
@@ -85,9 +79,9 @@ fn failure_names_counter_value(w: &mut CliWorld) {
 )]
 fn xcode_project_with_trio(w: &mut CliWorld) {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcode-app");
-    let dir = std::env::temp_dir().join("craftsman-spec-xcode-fixture");
-    crate::repo_steps::copy_tree(&fixture, &dir);
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    let dir = fixtures::stable_dir("craftsman-spec-xcode-fixture");
+    fixtures::copy_tree(&fixture, &dir);
+    fixtures::scrub(&dir, &[".craftsman"]);
     // The committed fixture is pass/pass/undefined; breaking the counter
     // assertion turns one pass into a genuine failure.
     let steps = dir.join("Tests/XcodeAppTests/Steps.swift");

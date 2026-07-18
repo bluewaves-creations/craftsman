@@ -1,11 +1,9 @@
 //! Step definitions — project-level fixtures: spec/plan/config scaffolds,
 //! code-gen fixtures, gate fixtures, and their assertions.
 
-use std::process::Command;
-
 use cucumber::{given, then, when};
 
-use crate::{CliWorld, MINIMAL_CONFIG};
+use crate::{CliWorld, MINIMAL_CONFIG, fixtures};
 
 #[given(expr = "a craftsman project whose spec has scenarios {string} and {string}")]
 fn project_with_two_scenarios(w: &mut CliWorld, first: String, second: String) {
@@ -46,13 +44,7 @@ const HAND_MODIFICATION: &str = "# hand-tuned: do not lose me\n";
 
 #[given("spec gen has run and the step template was hand-modified")]
 fn spec_gen_ran_and_template_modified(w: &mut CliWorld) {
-    w.run_craftsman(&["spec", "gen"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming spec gen must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["spec", "gen"]);
     let path = w.project_dir().join("tests/steps.bash.template");
     assert!(path.is_file(), "gen must have created the template");
     std::fs::write(&path, HAND_MODIFICATION)
@@ -118,11 +110,11 @@ const GREEN_FIXTURE_SPEC: &str = "Feature: Scaffold fixture\n\n  Scenario: The l
 /// stable temp path — each caller gets its own directory so concurrently
 /// running scenarios never share a fixture.
 fn scaffold_fixture(w: &mut CliWorld, dir_name: &str, spec: &str) {
-    let dir = std::env::temp_dir().join(dir_name);
+    let dir = fixtures::stable_dir(dir_name);
     craftsman::doctor::scaffold_rust_fixture(&dir, spec, true)
         .unwrap_or_else(|e| panic!("scaffold {dir_name}: {e}"));
     // A fresh fixture state: no impact map or other cached CLI state.
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    fixtures::scrub(&dir, &[".craftsman"]);
     w.fixed_dir = Some(dir);
 }
 
@@ -140,13 +132,7 @@ pub fn scaffold_green_fixture(w: &mut CliWorld, dir_name: &str) {
 #[given("a scaffolded rust project with a recorded green verify run")]
 fn scaffolded_recorded_project(w: &mut CliWorld) {
     scaffold_fixture(w, "craftsman-spec-status-fixture", GREEN_FIXTURE_SPEC);
-    w.run_craftsman(&["verify"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming verify must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["verify"]);
 }
 
 #[given("a scaffolded rust project whose spec has an unimplemented step")]
@@ -172,7 +158,7 @@ fn scaffold_gate_fixture(
     lint_mode: &str,
     with_git: bool,
 ) {
-    let dir = std::env::temp_dir().join(dir_name);
+    let dir = fixtures::stable_dir(dir_name);
     std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
     let write = |name: &str, content: &str| {
         std::fs::write(dir.join(name), content)
@@ -201,10 +187,9 @@ fn scaffold_gate_fixture(
     // gate-cache key between the first and second check-all.
     write(".gitignore", "target/\n.craftsman/\nCargo.lock\n");
     // Fresh gate state on every scenario run: no stale baselines or caches.
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
-    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    fixtures::scrub(&dir, &[".craftsman", ".git"]);
     if with_git {
-        crate::repo_steps::git_init_commit_all(&dir);
+        fixtures::git_init_commit_all(&dir);
     }
     w.fixed_dir = Some(dir);
 }
@@ -255,24 +240,12 @@ fn gate_fixture_clean_git(w: &mut CliWorld) {
 
 #[given("its lint baseline has been recorded")]
 fn lint_baseline_recorded(w: &mut CliWorld) {
-    w.run_craftsman(&["gate", "baseline", "lint"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "gate baseline lint must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["gate", "baseline", "lint"]);
 }
 
 #[when("I run craftsman check-all twice")]
 fn run_check_all_twice(w: &mut CliWorld) {
-    w.run_craftsman(&["check-all"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming check-all must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["check-all"]);
     w.run_craftsman(&["check-all"]);
 }
 
@@ -347,14 +320,7 @@ fn project_with_unbaselined_health_debt(w: &mut CliWorld) {
         "src/lib.rs",
         "pub fn inherited() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    let _ = a + b + c + d + e;\n}\n",
     );
-    for args in [&["init", "--quiet"][..], &["add", "-A"][..]] {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(&dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {args:?} failed");
-    }
+    fixtures::git_init_add(&dir);
 }
 
 /// A hermetic tools dir carrying the scaffold's pinned release binaries

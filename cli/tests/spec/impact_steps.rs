@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use cucumber::{given, then, when};
 
-use crate::CliWorld;
+use crate::{CliWorld, fixtures};
 
 fn python_todo_fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/python-todo")
@@ -18,7 +18,7 @@ fn python_todo_fixture() -> PathBuf {
 /// happen inside the steps so coverage attributes each module to its own
 /// scenario). Reuses python-todo's pyproject + uv.lock for a warm cache.
 fn build_two_module_fixture(w: &mut CliWorld, dir_name: &str, feature: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(dir_name);
+    let dir = fixtures::stable_dir(dir_name);
     let _ = std::fs::remove_dir_all(&dir);
     for sub in ["features", "tests", "src"] {
         std::fs::create_dir_all(dir.join(sub)).expect("mkdirs");
@@ -53,16 +53,6 @@ const TWO_SCENARIO_FEATURE: &str = "Feature: Impact fixture\n\n  Scenario: First
 
 const ONE_SCENARIO_FEATURE: &str =
     "Feature: Impact fixture\n\n  Scenario: First behavior\n    Given the a module truth holds\n";
-
-fn prime_full_verify(w: &mut CliWorld) {
-    w.run_craftsman(&["verify"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming verify must pass:\n{}",
-        w.combined_output()
-    );
-}
 
 #[given(expr = "a craftsman project with passing scenarios {string} and {string}")]
 fn project_with_passing_scenarios(w: &mut CliWorld, first: String, second: String) {
@@ -99,9 +89,9 @@ fn exactly_one_result(w: &mut CliWorld, name: String) {
 
 #[given("a craftsman project whose spec has a scenario with an unimplemented step")]
 fn project_with_unimplemented_step(w: &mut CliWorld) {
-    let dir = std::env::temp_dir().join("craftsman-spec-pyundef-fixture");
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
-    crate::repo_steps::copy_tree(&python_todo_fixture(), &dir);
+    let dir = fixtures::stable_dir("craftsman-spec-pyundef-fixture");
+    fixtures::scrub(&dir, &[".craftsman"]);
+    fixtures::copy_tree(&python_todo_fixture(), &dir);
     w.fixed_dir = Some(dir);
 }
 
@@ -116,9 +106,9 @@ fn undefined_carries_detail(w: &mut CliWorld) {
 
 #[given("a python craftsman project with no impact map")]
 fn python_project_without_map(w: &mut CliWorld) {
-    let dir = std::env::temp_dir().join("craftsman-spec-pymap-fixture");
-    crate::repo_steps::copy_tree(&python_todo_fixture(), &dir);
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    let dir = fixtures::stable_dir("craftsman-spec-pymap-fixture");
+    fixtures::copy_tree(&python_todo_fixture(), &dir);
+    fixtures::scrub(&dir, &[".craftsman"]);
     w.fixed_dir = Some(dir);
 }
 
@@ -156,10 +146,10 @@ fn map_covers(w: &mut CliWorld, scenario: &str, file: &str) {
 )]
 fn project_with_covering_map(w: &mut CliWorld, first: String, second: String) {
     let dir = build_two_module_fixture(w, "craftsman-spec-pyimpact-fixture", TWO_SCENARIO_FEATURE);
-    prime_full_verify(w);
+    w.prime(&["verify"]);
     map_covers(w, &first, "src/a.py");
     map_covers(w, &second, "src/b.py");
-    crate::repo_steps::git_init_commit_all(&dir);
+    fixtures::git_init_commit_all(&dir);
 }
 
 #[given(expr = "the diff since the last commit touches only src\\/a.py")]
@@ -193,7 +183,7 @@ fn only_named_scenario_runs(w: &mut CliWorld, name: String) {
 #[given(expr = "a craftsman project whose impact map covers {string} but not {string}")]
 fn project_with_partial_map(w: &mut CliWorld, first: String, unmapped: String) {
     let dir = build_two_module_fixture(w, "craftsman-spec-pynew-fixture", ONE_SCENARIO_FEATURE);
-    prime_full_verify(w);
+    w.prime(&["verify"]);
     map_covers(w, &first, "src/a.py");
     // The new scenario arrives after the map was recorded — the real
     // situation the rule exists for.
@@ -204,7 +194,7 @@ fn project_with_partial_map(w: &mut CliWorld, first: String, unmapped: String) {
         ),
     )
     .expect("extend feature");
-    crate::repo_steps::git_init_commit_all(&dir);
+    crate::fixtures::git_init_commit_all(&dir);
 }
 
 #[given("the diff since the last commit touches no covered file")]
@@ -216,11 +206,8 @@ fn diff_touches_nothing_covered(w: &mut CliWorld) {
 fn scaffolded_recorded_clean_project(w: &mut CliWorld) {
     crate::project_steps::scaffold_green_fixture(w, "craftsman-spec-impact-empty-fixture");
     let dir = w.project_dir();
-    let _ = std::fs::remove_dir_all(dir.join(".git"));
-    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
-        .expect("write .gitignore");
-    crate::repo_steps::git_init_commit_all(&dir);
-    prime_full_verify(w);
+    fixtures::recommit_scaffold(&dir);
+    w.prime(&["verify"]);
 }
 
 #[then(expr = "the scenario {string} runs")]

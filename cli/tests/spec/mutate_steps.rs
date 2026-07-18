@@ -30,7 +30,7 @@ fn project_with_weak_tests(w: &mut CliWorld) {
         "[project]\nname = \"mutate-py\"\nstacks = [\"python\"]\n\n[verify.python]\ntests-dir = \"tests\"\n",
     );
     w.write(".gitignore", ".craftsman/\n.venv/\n__pycache__/\n");
-    crate::repo_steps::git_init_commit_all(&dir);
+    crate::fixtures::git_init_commit_all(&dir);
     let path = dir.join("todo_util.py");
     let mut text = std::fs::read_to_string(&path).expect("read todo_util.py");
     text.push_str("\n# seeded diff for the mutate scenario\n");
@@ -71,5 +71,5 @@ fn project_with_clean_tree(w: &mut CliWorld) {
     );
     w.write("module.py", "def truth():\n    return True\n");
     w.write(".gitignore", ".craftsman/\n");
-    crate::repo_steps::git_init_commit_all(&w.project_dir());
+    crate::fixtures::git_init_commit_all(&w.project_dir());
 }

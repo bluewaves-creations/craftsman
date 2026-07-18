@@ -18,13 +18,7 @@ fn sandboxed_home_with_setup_run(w: &mut CliWorld) {
     std::fs::create_dir_all(home.path().join(".claude")).expect("claude marker");
     w.home = Some(home);
     let _ = w.project_dir();
-    w.run_craftsman(&["setup"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming setup must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["setup"]);
 }
 
 fn plant_hand_written_file(w: &mut CliWorld) {

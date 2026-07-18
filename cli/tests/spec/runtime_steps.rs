@@ -6,14 +6,14 @@ use std::process::Command;
 
 use cucumber::{given, then};
 
-use crate::CliWorld;
+use crate::{CliWorld, fixtures};
 
 /// The static-site fixture at a stable path with dependencies installed
 /// (`bun install --frozen-lockfile` once; `node_modules` survives runs).
 fn site_fixture(w: &mut CliWorld, dir_name: &str, gate_section: &str) {
-    let dir = std::env::temp_dir().join(dir_name);
-    crate::repo_steps::copy_tree(&crate::probes::static_site_fixture(), &dir);
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    let dir = fixtures::stable_dir(dir_name);
+    fixtures::copy_tree(&crate::probes::static_site_fixture(), &dir);
+    fixtures::scrub(&dir, &[".craftsman"]);
     std::fs::write(
         dir.join("craftsman.toml"),
         format!("[project]\nname = \"static-site\"\nstacks = [\"typescript\"]\n\n{gate_section}\n"),

@@ -2,46 +2,25 @@
 //! scenarios (Batch 11): phase sequencing, phase-1 scaffolds, extract
 //! accumulation, and adr index regeneration.
 
-use std::process::Command;
-
 use cucumber::{given, then};
 
-use crate::{CliWorld, MINIMAL_CONFIG};
-
-fn run_priming(w: &mut CliWorld, args: &[&str], what: &str) {
-    w.run_craftsman(args);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming {what} must pass:\n{}",
-        w.combined_output()
-    );
-}
+use crate::{CliWorld, MINIMAL_CONFIG, fixtures};
 
 #[given("adoption phase 0 has been started")]
 fn adopt_phase_0_started(w: &mut CliWorld) {
-    run_priming(w, &["adopt", "--start-phase", "0"], "adopt --start-phase 0");
+    w.prime(&["adopt", "--start-phase", "0"]);
 }
 
 #[given("adoption phase 0 has been started and completed")]
 fn adopt_phase_0_done(w: &mut CliWorld) {
-    run_priming(w, &["adopt", "--start-phase", "0"], "adopt --start-phase 0");
-    run_priming(
-        w,
-        &["adopt", "--complete-phase", "0"],
-        "adopt --complete-phase 0",
-    );
+    w.prime(&["adopt", "--start-phase", "0"]);
+    w.prime(&["adopt", "--complete-phase", "0"]);
 }
 
 #[given(expr = "a git repository with a hand-written craftsman.toml naming the project {string}")]
 fn repo_with_hand_written_config(w: &mut CliWorld, name: String) {
     let dir = w.project_dir();
-    let status = Command::new("git")
-        .args(["init", "--quiet"])
-        .current_dir(&dir)
-        .status()
-        .expect("spawn git init");
-    assert!(status.success(), "git init failed in {}", dir.display());
+    fixtures::git(&dir, &["init", "--quiet"]);
     w.write(
         "craftsman.toml",
         &format!("[project]\nname = \"{name}\"\nstacks = [\"rust\"]\n"),
@@ -65,17 +44,13 @@ fn extract_failed_approach(w: &mut CliWorld, batch: u32, approach: &str) {
         "SPEC.md",
         "Feature: Fixture feature\n\n  Scenario: First behavior\n",
     );
-    run_priming(
-        w,
-        &[
-            "extract",
-            "--batch",
-            &batch.to_string(),
-            "--failed",
-            approach,
-        ],
+    w.prime(&[
         "extract",
-    );
+        "--batch",
+        &batch.to_string(),
+        "--failed",
+        approach,
+    ]);
 }
 
 #[given(expr = "a craftsman project where batch {int} extracted the failed approach {string}")]

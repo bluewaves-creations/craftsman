@@ -5,7 +5,7 @@ use std::process::Command;
 
 use cucumber::{given, then, when};
 
-use crate::{CliWorld, MINIMAL_CONFIG};
+use crate::{CliWorld, MINIMAL_CONFIG, fixtures};
 
 #[given("an empty project directory")]
 fn empty_project_directory(w: &mut CliWorld) {
@@ -28,67 +28,6 @@ fn file_exists(w: &mut CliWorld, rel: String) {
     assert!(path.is_file(), "{} does not exist", path.display());
 }
 
-/// `git init` + `git add -A` in the fixture dir (arch and health census
-/// tracked files via `git ls-files`; no commit needed).
-fn git_init_add(dir: &std::path::Path) {
-    for args in [&["init", "--quiet"][..], &["add", "-A"][..]] {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {args:?} failed in {}", dir.display());
-    }
-}
-
-/// Recursive fixture copy, skipping caches and per-run state (`.git`,
-/// `.craftsman`, `.venv`, `node_modules`, `__pycache__`, `target`).
-pub fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
-    std::fs::create_dir_all(to).expect("mkdirs");
-    for entry in std::fs::read_dir(from).expect("read fixture dir") {
-        let entry = entry.expect("dir entry");
-        let name = entry.file_name();
-        let skip = [
-            ".git",
-            ".craftsman",
-            ".venv",
-            "node_modules",
-            "__pycache__",
-            "target",
-        ];
-        if skip.iter().any(|s| name.to_string_lossy() == *s) {
-            continue;
-        }
-        let src = entry.path();
-        let dest = to.join(&name);
-        if src.is_dir() {
-            copy_tree(&src, &dest);
-        } else {
-            std::fs::copy(&src, &dest).unwrap_or_else(|e| panic!("copy {}: {e}", src.display()));
-        }
-    }
-}
-
-/// Fresh single-commit repository: init, stage everything, commit — for
-/// fixtures that need a resolvable `HEAD`. The identity is written into
-/// the repo config (not passed per-command) so commits the CLI itself
-/// makes later also resolve it — CI runners have no global identity.
-pub fn git_init_commit_all(dir: &std::path::Path) {
-    git_init_add(dir);
-    for args in [
-        &["config", "user.name", "fixture"][..],
-        &["config", "user.email", "fixture@example.invalid"][..],
-        &["commit", "--quiet", "-m", "init"][..],
-    ] {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {args:?} failed in {}", dir.display());
-    }
-}
-
 #[given("a craftsman project with an arch deny rule and a violating import")]
 fn arch_violation_fixture(w: &mut CliWorld) {
     w.write(
@@ -104,7 +43,7 @@ fn arch_violation_fixture(w: &mut CliWorld) {
     std::fs::create_dir_all(dir.join("src/b")).expect("mkdirs");
     w.write("src/a/mod.rs", "use crate::b::helper;\n");
     w.write("src/b/mod.rs", "pub fn helper() {}\n");
-    git_init_add(&dir);
+    fixtures::git_init_add(&dir);
 }
 
 #[given("a craftsman project whose source has a function longer than the health limit")]
@@ -123,7 +62,7 @@ fn health_long_function_fixture(w: &mut CliWorld) {
         "src/lib.rs",
         "pub fn sprawling() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    let f = 6;\n    let _ = a + b + c + d + e + f;\n}\n",
     );
-    git_init_add(&dir);
+    fixtures::git_init_add(&dir);
 }
 
 #[given(expr = "a craftsman project with a seeded docs cache for library {string}")]
@@ -151,13 +90,7 @@ fn seeded_docs_cache(w: &mut CliWorld, lib: String) {
 
 #[given(expr = "a batch 7 extract recorded the decision {string}")]
 fn batch_extract_recorded(w: &mut CliWorld, decision: String) {
-    w.run_craftsman(&["extract", "--batch", "7", "--decision", &decision]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming extract must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["extract", "--batch", "7", "--decision", &decision]);
 }
 
 #[given(expr = "a craftsman project with decisions {string} and {string}")]
@@ -201,13 +134,7 @@ fn empty_git_repository_directory(w: &mut CliWorld) {
 
 #[given("craftsman init has already scaffolded it")]
 fn init_already_scaffolded(w: &mut CliWorld) {
-    w.run_craftsman(&["init", "--name", "demo", "--stack", "rust"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming init must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["init", "--name", "demo", "--stack", "rust"]);
 }
 
 #[given("a sandboxed home directory with a Claude Code marker")]
@@ -314,22 +241,12 @@ fn stdout_is_json_with_scenarios(w: &mut CliWorld, count: usize) {
 fn green_project_with_unborn_head(w: &mut CliWorld) {
     crate::project_steps::scaffold_green_fixture(w, "craftsman-spec-first-commit-fixture");
     let dir = w.project_dir();
-    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    fixtures::scrub(&dir, &["NOTES.md", ".git"]);
     std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
         .expect("write .gitignore");
-    for args in [
-        &["init", "--quiet"][..],
-        &["config", "user.name", "fixture"][..],
-        &["config", "user.email", "fixture@example.invalid"][..],
-        &["add", "-A"][..],
-    ] {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(&dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {args:?} failed in {}", dir.display());
-    }
+    fixtures::git(&dir, &["init", "--quiet"]);
+    fixtures::git_identity(&dir);
+    fixtures::git(&dir, &["add", "-A"]);
 }
 
 #[when("I run craftsman commit for the staged tree")]

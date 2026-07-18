@@ -2,11 +2,9 @@
 //! (Batch 11): staleness notes, regex-hostile-name warnings, code-gen
 //! empty selection, the write-once a11y stub, and plan lint findings.
 
-use std::process::Command;
-
 use cucumber::{given, then, when};
 
-use crate::{CliWorld, MINIMAL_CONFIG};
+use crate::{CliWorld, MINIMAL_CONFIG, fixtures};
 
 #[given("a craftsman project with a recorded green verify run")]
 fn project_with_recorded_run(w: &mut CliWorld) {
@@ -14,49 +12,25 @@ fn project_with_recorded_run(w: &mut CliWorld) {
     // Staleness is HEAD movement, so the fixture needs a repository with
     // a commit recorded before the verify run.
     let dir = w.project_dir();
-    let _ = std::fs::remove_dir_all(dir.join(".git"));
-    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
-        .expect("write .gitignore");
-    crate::repo_steps::git_init_commit_all(&dir);
-    w.run_craftsman(&["verify"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming verify must pass:\n{}",
-        w.combined_output()
-    );
+    fixtures::recommit_scaffold(&dir);
+    w.prime(&["verify"]);
 }
 
 #[given("a two-scenario project with a recorded green verify run")]
 fn two_scenario_recorded_project(w: &mut CliWorld) {
-    let dir = std::env::temp_dir().join("craftsman-spec-r10-fixture");
+    let dir = fixtures::stable_dir("craftsman-spec-r10-fixture");
     let spec = "Feature: Merge fixture\n\n  Scenario: The loop closes\n    Given a truth\n    Then it holds\n\n  Scenario: The loop closes again\n    Given a truth\n    Then it holds\n";
     craftsman::doctor::scaffold_rust_fixture(&dir, spec, true)
         .unwrap_or_else(|e| panic!("scaffold merge fixture: {e}"));
-    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
-    let _ = std::fs::remove_dir_all(dir.join(".git"));
-    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
-        .expect("write .gitignore");
-    crate::repo_steps::git_init_commit_all(&dir);
+    fixtures::scrub(&dir, &[".craftsman"]);
+    fixtures::recommit_scaffold(&dir);
     w.fixed_dir = Some(dir);
-    w.run_craftsman(&["verify"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming verify must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["verify"]);
 }
 
 #[when("one scenario is re-verified alone")]
 fn one_scenario_reverified(w: &mut CliWorld) {
-    w.run_craftsman(&["verify", "--scenario", "The loop closes"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "the filtered run must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["verify", "--scenario", "The loop closes"]);
 }
 
 #[then("both scenarios still report a recorded pass")]
@@ -80,23 +54,12 @@ fn both_scenarios_report_pass(w: &mut CliWorld) {
 
 #[given("a commit has moved the repository head since that run")]
 fn commit_moves_head(w: &mut CliWorld) {
+    // The identity is in the repo config (recommit_scaffold wrote it).
     let dir = w.project_dir();
-    let status = Command::new("git")
-        .args([
-            "-c",
-            "user.name=fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "--quiet",
-            "--allow-empty",
-            "-m",
-            "move the head",
-        ])
-        .current_dir(&dir)
-        .status()
-        .expect("spawn git commit");
-    assert!(status.success(), "git commit failed in {}", dir.display());
+    fixtures::git(
+        &dir,
+        &["commit", "--quiet", "--allow-empty", "-m", "move the head"],
+    );
 }
 
 #[given(expr = "a craftsman project whose spec has a scenario named {string}")]
@@ -143,13 +106,7 @@ fn swift_project_with_edited_stub(w: &mut CliWorld) {
         "SPEC.md",
         "Feature: Fixture feature\n\n  Scenario: First behavior\n",
     );
-    w.run_craftsman(&["spec", "gen", "--a11y-stub"]);
-    assert_eq!(
-        w.output().status.code(),
-        Some(0),
-        "priming spec gen --a11y-stub must pass:\n{}",
-        w.combined_output()
-    );
+    w.prime(&["spec", "gen", "--a11y-stub"]);
     assert!(
         w.project_dir().join(A11Y_STUB).is_file(),
         "the stub must exist after generation"

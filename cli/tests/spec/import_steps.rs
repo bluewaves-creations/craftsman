@@ -6,24 +6,17 @@ use std::process::Command;
 
 use cucumber::{given, then};
 
-use crate::CliWorld;
+use crate::{CliWorld, fixtures};
 
 /// The pre-existing source content the non-destructive checks compare
 /// against byte-for-byte.
 const ORIGINAL_SOURCE: &str = "fn main() { println!(\"inherited\"); }\n";
 
 fn git_init(dir: &std::path::Path, add_all: bool) {
-    let mut runs = vec![vec!["init", "--quiet"]];
     if add_all {
-        runs.push(vec!["add", "-A"]);
-    }
-    for args in runs {
-        let status = Command::new("git")
-            .args(&args)
-            .current_dir(dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {args:?} failed in {}", dir.display());
+        fixtures::git_init_add(dir);
+    } else {
+        fixtures::git(dir, &["init", "--quiet"]);
     }
 }
 
@@ -115,17 +108,7 @@ fn qa_gate_project(w: &mut CliWorld, command: &str, with_git: bool) {
     if with_git {
         let dir = w.project_dir();
         git_init(&dir, true);
-        for args in [
-            ["config", "user.name", "fixture"],
-            ["config", "user.email", "fixture@example.invalid"],
-        ] {
-            let status = Command::new("git")
-                .args(args)
-                .current_dir(&dir)
-                .status()
-                .expect("spawn git config");
-            assert!(status.success());
-        }
+        fixtures::git_identity(&dir);
     }
 }
 

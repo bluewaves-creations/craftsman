@@ -89,7 +89,7 @@ fn repo_with_committed_key(w: &mut CliWorld) {
     let secret = planted_secret();
     std::fs::create_dir_all(w.project_dir().join("config")).expect("mkdirs");
     w.write("config/prod.env", &format!("AWS_ACCESS_KEY_ID={secret}\n"));
-    crate::repo_steps::git_init_commit_all(&w.project_dir());
+    crate::fixtures::git_init_commit_all(&w.project_dir());
     // The gitleaks report a real scan of that history would produce —
     // secret value included, exactly what the parser must hide.
     let report = format!(
@@ -102,14 +102,14 @@ fn repo_with_committed_key(w: &mut CliWorld) {
 fn scan_with_below_threshold_finding(w: &mut CliWorld) {
     // Threshold critical; the fake semgrep HIGH finding sits below it.
     security_project(w, Some("critical"));
-    crate::repo_steps::git_init_commit_all(&w.project_dir());
+    crate::fixtures::git_init_commit_all(&w.project_dir());
     install_fake_scanners(w, &gitleaks_script("[]", 0), SEMGREP_ONE_HIGH);
 }
 
 #[given("a craftsman project whose security scanner exits with an unexpected code")]
 fn scanner_with_unexpected_exit(w: &mut CliWorld) {
     security_project(w, None);
-    crate::repo_steps::git_init_commit_all(&w.project_dir());
+    crate::fixtures::git_init_commit_all(&w.project_dir());
     install_fake_scanners(w, "#!/bin/sh\necho boom >&2\nexit 2\n", SEMGREP_CLEAN);
 }
 

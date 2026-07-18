@@ -20,6 +20,7 @@ mod adopt_steps;
 mod codegen_steps;
 mod docs_steps;
 mod engine_steps;
+mod fixtures;
 mod gates_steps;
 mod impact_steps;
 mod import_steps;
@@ -95,6 +96,19 @@ impl CliWorld {
             cmd.env(k, v);
         }
         self.output = Some(cmd.output().expect("spawn craftsman"));
+    }
+
+    /// Run craftsman and assert exit 0 — for steps that prime fixture
+    /// state before the behavior under test. The scenario's own When
+    /// keeps `run_craftsman`, whose exit code the Then judges.
+    fn prime(&mut self, args: &[&str]) {
+        self.run_craftsman(args);
+        assert_eq!(
+            self.output().status.code(),
+            Some(0),
+            "priming craftsman {args:?} must pass:\n{}",
+            self.combined_output()
+        );
     }
 
     const fn output(&self) -> &Output {
