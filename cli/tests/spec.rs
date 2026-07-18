@@ -82,6 +82,18 @@ fn project_with_two_scenarios(w: &mut CliWorld, first: String, second: String) {
     );
 }
 
+#[given(expr = "a craftsman project configured with stacks {string} and {string}")]
+fn project_with_stacks(w: &mut CliWorld, first: String, second: String) {
+    w.write(
+        "craftsman.toml",
+        &format!("[project]\nname = \"fixture\"\nstacks = [\"{first}\", \"{second}\"]\n"),
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+}
+
 #[given(expr = "a craftsman project whose spec has a scenario tagged {string}")]
 fn project_with_tagged_scenario(w: &mut CliWorld, tag: String) {
     w.write("craftsman.toml", MINIMAL_CONFIG);

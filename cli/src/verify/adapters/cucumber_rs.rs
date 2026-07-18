@@ -9,54 +9,15 @@
 //! matching nothing also exits 0 (ADR-002); craftsman counts scenarios
 //! itself.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
-use thiserror::Error;
-
-use crate::verify::normalize::{
-    CucumberJsonDialect, NormalizeError, ScenarioResult, parse_cucumber_json,
-};
+use super::{AdapterError, tail};
+use crate::verify::normalize::{CucumberJsonDialect, ScenarioResult, parse_cucumber_json};
 
 /// Environment variable through which the adapter hands the harness the
 /// cucumber-json output path.
 pub const RESULTS_ENV: &str = "CRAFTSMAN_JSON";
-
-#[derive(Debug, Error)]
-pub enum AdapterError {
-    #[error("failed to spawn `{command}` in {dir}")]
-    Spawn {
-        command: String,
-        dir: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("could not prepare results path {path}")]
-    ResultsPath {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("`{command}` failed (exit {code}) without writing results:\n{output_tail}")]
-    RunnerFailed {
-        command: String,
-        code: String,
-        output_tail: String,
-    },
-    #[error(
-        "harness wrote no results to {path} — the `--test {target}` target must \
-         write cucumber-json to the path in ${RESULTS_ENV} (ADR-003 convention)"
-    )]
-    NoResults { path: PathBuf, target: String },
-    #[error("cannot read results {path}")]
-    ReadResults {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error(transparent)]
-    Normalize(#[from] NormalizeError),
-}
 
 /// Run the project's cucumber-rs harness, optionally filtered to exact
 /// scenario names, and normalize its cucumber-json output.
@@ -110,7 +71,10 @@ pub fn run(
         if output.status.success() {
             return Err(AdapterError::NoResults {
                 path: results_path,
-                target: runner_target.to_owned(),
+                hint: format!(
+                    "the `--test {runner_target}` target must write cucumber-json \
+                     to the path in ${RESULTS_ENV} (ADR-003 convention)"
+                ),
             });
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -153,12 +117,6 @@ fn regex_escape(name: &str) -> String {
         out.push(c);
     }
     out
-}
-
-fn tail(text: &str, lines: usize) -> String {
-    let all: Vec<&str> = text.lines().collect();
-    let start = all.len().saturating_sub(lines);
-    all[start..].join("\n")
 }
 
 #[cfg(test)]

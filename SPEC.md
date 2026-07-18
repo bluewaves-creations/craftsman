@@ -41,6 +41,12 @@ Feature: Craftsman CLI core
     When I run craftsman verify for the scenario "No such behavior"
     Then the exit code is 4
 
+  Scenario: Verify runs every configured stack
+    Given a craftsman project configured with stacks "rust" and "cobol"
+    When I run craftsman with "verify"
+    Then the exit code is 3
+    And the output contains "cobol"
+
   Scenario: Verify refuses to run without a craftsman config
     Given an empty project directory
     When I run craftsman with "verify"

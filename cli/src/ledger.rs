@@ -244,22 +244,26 @@ fn staged_files(root: &Path) -> Result<Vec<String>, LedgerError> {
 }
 
 /// The rust project directory to run fmt/clippy in, when the project has a
-/// rust stack and any staged path lies under its root (`[verify] cwd`, or
-/// the repo root when unset — then every staged file counts).
+/// rust stack and any staged path lies under its root (`[verify.rust] cwd`,
+/// or the repo root when unset — then every staged file counts).
 fn rust_lint_dir(config: &Config, root: &Path, staged: &[String]) -> Option<PathBuf> {
     if !config.project.stacks.iter().any(|s| s == "rust") {
         return None;
     }
-    config.verify.cwd.as_ref().map_or_else(
-        || Some(root.to_path_buf()),
-        |cwd| {
-            let prefix = format!("{}/", cwd.trim_end_matches('/'));
-            staged
-                .iter()
-                .any(|p| p.starts_with(&prefix))
-                .then(|| root.join(cwd))
-        },
-    )
+    config
+        .verify
+        .stack("rust")
+        .and_then(|s| s.cwd.as_ref())
+        .map_or_else(
+            || Some(root.to_path_buf()),
+            |cwd| {
+                let prefix = format!("{}/", cwd.trim_end_matches('/'));
+                staged
+                    .iter()
+                    .any(|p| p.starts_with(&prefix))
+                    .then(|| root.join(cwd))
+            },
+        )
 }
 
 /// Run one cargo tool gate, capturing its output as the failure detail.
@@ -485,7 +489,7 @@ mod tests {
     #[test]
     fn rust_lint_dir_honors_the_stack_root() {
         let config = Config::from_toml(
-            "[project]\nname = \"x\"\nstacks = [\"rust\"]\n[verify]\ncwd = \"cli\"\n",
+            "[project]\nname = \"x\"\nstacks = [\"rust\"]\n[verify.rust]\ncwd = \"cli\"\n",
             Path::new("craftsman.toml"),
         )
         .expect("config parses");

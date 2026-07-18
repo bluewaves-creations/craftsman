@@ -96,18 +96,53 @@ fn default_plan() -> String {
     "PLAN.md".to_owned()
 }
 
+/// `[verify]` is a table of per-stack tables.
+///
+/// `[verify.rust]`, `[verify.python]`, `[verify.typescript]` — a clean
+/// break from the Batch 2/3 flat keys, made while nothing external consumed
+/// them (Batch 4). Each stack listed in `[project] stacks` reads its own
+/// section; an absent section means all defaults.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Verify {
-    /// Per-stack default overridable; `cucumber-rs` for the rust stack.
+    pub rust: Option<VerifyStack>,
+    pub python: Option<VerifyStack>,
+    pub typescript: Option<VerifyStack>,
+}
+
+impl Verify {
+    /// The section for a stack name, when configured. Unknown names return
+    /// `None`; the verify dispatcher owns rejecting unknown stacks loudly.
+    #[must_use]
+    pub fn stack(&self, name: &str) -> Option<&VerifyStack> {
+        match name {
+            "rust" => self.rust.as_ref(),
+            "python" => self.python.as_ref(),
+            "typescript" => self.typescript.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+/// One stack's verify settings. All optional — adapters own the defaults.
+/// The field set is shared across stacks; the dispatcher validates that a
+/// configured `runner` is one the stack actually supports.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct VerifyStack {
+    /// Per-stack default overridable; `cucumber-rs` (rust), `pytest-bdd`
+    /// (python), `cucumber-js` (typescript).
     pub runner: Option<String>,
     /// Cargo integration-test target the cucumber-rs harness lives in
-    /// (`cargo test --test <runner-target>`). Default: `spec`.
+    /// (`cargo test --test <runner-target>`). Default: `spec`. Rust only.
     pub runner_target: Option<String>,
     /// Directory containing the runnable project, relative to the config
     /// root, when the code does not live at the root (e.g. `cli/` here).
     pub cwd: Option<String>,
-    /// xcodebuild stacks only.
+    /// Directory pytest collects from, relative to the stack `cwd`.
+    /// Default: `tests`. Python only.
+    pub tests_dir: Option<String>,
+    /// xcodebuild stacks only (Batch 5).
     pub scheme: Option<String>,
     pub destination: Option<String>,
 }
@@ -240,12 +275,19 @@ mod tests {
             plan = "PLAN.md"
             cli-version = "0.4"
 
-            [verify]
+            [verify.rust]
             runner = "cucumber-rs"
             runner-target = "spec"
             cwd = "cli"
-            scheme = "AcmeApp"
-            destination = "platform=iOS Simulator,name=iPhone 17"
+
+            [verify.python]
+            runner = "pytest-bdd"
+            tests-dir = "tests"
+            cwd = "backend"
+
+            [verify.typescript]
+            runner = "cucumber-js"
+            cwd = "web"
 
             [gates]
             verify = "strict"
@@ -276,7 +318,13 @@ mod tests {
         assert_eq!(c.gates.verify, Some(GateMode::Strict));
         assert_eq!(c.gates.lint, Some(GateMode::Baseline));
         assert_eq!(c.gates.tools["gitleaks"], "8.24.0");
-        assert_eq!(c.verify.runner_target.as_deref(), Some("spec"));
+        let rust = c.verify.stack("rust").expect("[verify.rust] present");
+        assert_eq!(rust.runner_target.as_deref(), Some("spec"));
+        assert_eq!(rust.cwd.as_deref(), Some("cli"));
+        let python = c.verify.stack("python").expect("[verify.python] present");
+        assert_eq!(python.tests_dir.as_deref(), Some("tests"));
+        assert!(c.verify.stack("typescript").is_some());
+        assert!(c.verify.stack("cobol").is_none());
         assert_eq!(c.docs.cache.as_deref(), Some(".craftsman/docs"));
         assert_eq!(
             c.ledger.co_author.as_deref(),
@@ -288,6 +336,16 @@ mod tests {
     fn ledger_co_author_defaults_to_absent() {
         let c = parse(MINIMAL).expect("minimal config must parse");
         assert_eq!(c.ledger.co_author, None);
+    }
+
+    #[test]
+    fn rejects_the_pre_batch_4_flat_verify_keys() {
+        // Clean break (Batch 4): `[verify]` holds per-stack tables only.
+        let err = parse(&format!(
+            "{MINIMAL}\n[verify]\nrunner = \"cucumber-rs\"\ncwd = \"cli\"\n"
+        ))
+        .expect_err("flat [verify] keys must be rejected");
+        assert!(matches!(err, ConfigError::Parse { .. }), "{err}");
     }
 
     #[test]

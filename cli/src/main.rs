@@ -290,19 +290,22 @@ fn verify_cmd(batch: Option<u32>, scenario: Option<&str>, json: bool) -> anyhow:
     for w in &report.warnings {
         eprintln!("warning: {w}");
     }
-    for r in &report.results {
-        let mark = match r.status {
-            craftsman::verify::normalize::Status::Passed => "pass",
-            craftsman::verify::normalize::Status::Skipped => "skip",
-            craftsman::verify::normalize::Status::Pending => "pend",
-            craftsman::verify::normalize::Status::Undefined => "unde",
-            craftsman::verify::normalize::Status::Ambiguous => "ambi",
-            craftsman::verify::normalize::Status::Failed => "FAIL",
-        };
-        eprintln!("  {mark}  {}", r.scenario);
-        if let Some(failure) = &r.failure {
-            for line in failure.lines() {
-                eprintln!("        {line}");
+    for section in &report.stacks {
+        eprintln!("stack {}:", section.stack);
+        for r in &section.results {
+            let mark = match r.status {
+                craftsman::verify::normalize::Status::Passed => "pass",
+                craftsman::verify::normalize::Status::Skipped => "skip",
+                craftsman::verify::normalize::Status::Pending => "pend",
+                craftsman::verify::normalize::Status::Undefined => "unde",
+                craftsman::verify::normalize::Status::Ambiguous => "ambi",
+                craftsman::verify::normalize::Status::Failed => "FAIL",
+            };
+            eprintln!("  {mark}  {}", r.scenario);
+            if let Some(failure) = &r.failure {
+                for line in failure.lines() {
+                    eprintln!("        {line}");
+                }
             }
         }
     }
@@ -317,7 +320,7 @@ fn verify_cmd(batch: Option<u32>, scenario: Option<&str>, json: bool) -> anyhow:
             "gate": "verify",
             "status": report.outcome,
             "scenarios": report.counts,
-            "results": report.results,
+            "stacks": report.stacks,
             "warnings": report.warnings,
         });
         println!("{doc:#}");

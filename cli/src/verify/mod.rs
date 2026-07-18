@@ -1,5 +1,10 @@
 //! `craftsman verify` — THE gate: run SPEC.md scenarios via the stack
-//! adapter and normalize every runner's output into the schema v1 results.
+//! adapters and normalize every runner's output into the schema v1 results.
+//!
+//! Every stack listed in `[project] stacks` runs (Batch 4: rust, python,
+//! typescript — swift/bash code-gen arrive in Batch 5); results merge into
+//! one report with per-stack sections. Unknown stack names are rejected
+//! upfront, before any adapter runs.
 //!
 //! Exit-code contract (enforced by the command layer from [`Outcome`]):
 //! 0 all passed · 1 any failed/undefined/ambiguous · 3 tool or config
@@ -16,10 +21,11 @@ use std::path::Path;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::config::{Config, ConfigError};
+use crate::config::{Config, ConfigError, VerifyStack};
 use crate::plan::{self, PlanError};
 use crate::spec::{self, SpecError};
-use adapters::cucumber_rs::{self, AdapterError};
+use adapters::AdapterError;
+use adapters::cucumber_rs;
 use normalize::{ScenarioResult, Status};
 
 /// What to run: everything, one plan batch, or one scenario by exact name.
@@ -30,7 +36,7 @@ pub enum Selection {
     Scenario(String),
 }
 
-/// Errors before or while running the adapter. Exit code 3 territory.
+/// Errors before or while running the adapters. Exit code 3 territory.
 #[derive(Debug, Error)]
 pub enum VerifyError {
     #[error(transparent)]
@@ -42,12 +48,19 @@ pub enum VerifyError {
     #[error(transparent)]
     Adapter(#[from] AdapterError),
     #[error(
-        "no supported stack in {stacks:?} — Batch 2 supports the \"rust\" stack \
-         (cucumber-rs); python/typescript arrive in Batch 4, swift/bash in Batch 5"
+        "unknown stack {stack:?} in [project] stacks — craftsman verify \
+         supports \"rust\", \"python\", and \"typescript\" (swift/bash arrive \
+         in Batch 5)"
     )]
-    UnsupportedStack { stacks: Vec<String> },
-    #[error("[verify] runner {runner:?} is not supported for the rust stack — use \"cucumber-rs\"")]
-    UnsupportedRunner { runner: String },
+    UnknownStack { stack: String },
+    #[error("[verify.{stack}] runner {runner:?} is not supported — use {supported:?}")]
+    UnsupportedRunner {
+        stack: &'static str,
+        runner: String,
+        supported: &'static str,
+    },
+    #[error("stack {stack:?} is recognized but its adapter is not wired yet (Batch 4 in progress)")]
+    StackPending { stack: String },
 }
 
 /// Scenario counts by status.
@@ -62,7 +75,7 @@ pub struct Counts {
 }
 
 impl Counts {
-    fn tally(results: &[ScenarioResult]) -> Self {
+    fn tally<'a>(results: impl IntoIterator<Item = &'a ScenarioResult>) -> Self {
         let mut c = Self::default();
         for r in results {
             match r.status {
@@ -87,25 +100,37 @@ pub enum Outcome {
     EmptySelection,
 }
 
-/// Everything a verify run produced.
+/// One stack's normalized results — a section of the merged report.
+#[derive(Debug, Serialize)]
+pub struct StackReport {
+    pub stack: String,
+    pub results: Vec<ScenarioResult>,
+}
+
+/// Everything a verify run produced, merged across stacks.
 #[derive(Debug)]
 pub struct Report {
-    pub results: Vec<ScenarioResult>,
+    pub stacks: Vec<StackReport>,
     pub counts: Counts,
     pub outcome: Outcome,
     /// Non-fatal drift, e.g. a plan batch naming scenarios absent from the
-    /// spec (plan lint owns making that an error — Batch 3).
+    /// spec (plan lint owns making that an error).
     pub warnings: Vec<String>,
 }
 
 impl Report {
     fn empty(warnings: Vec<String>) -> Self {
         Self {
-            results: Vec::new(),
+            stacks: Vec::new(),
             counts: Counts::default(),
             outcome: Outcome::EmptySelection,
             warnings,
         }
+    }
+
+    /// All results across stacks, in stack order.
+    pub fn results(&self) -> impl Iterator<Item = &ScenarioResult> {
+        self.stacks.iter().flat_map(|s| s.results.iter())
     }
 }
 
@@ -119,16 +144,14 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     let config = loaded.config;
     let root = loaded.root;
 
-    if !config.project.stacks.iter().any(|s| s == "rust") {
-        return Err(VerifyError::UnsupportedStack {
-            stacks: config.project.stacks,
-        });
-    }
-    let runner = config.verify.runner.as_deref().unwrap_or("cucumber-rs");
-    if runner != "cucumber-rs" {
-        return Err(VerifyError::UnsupportedRunner {
-            runner: runner.to_owned(),
-        });
+    // Reject unknown stacks before running anything: a config typo must
+    // never silently shrink the verified surface.
+    for stack in &config.project.stacks {
+        if !matches!(stack.as_str(), "rust" | "python" | "typescript") {
+            return Err(VerifyError::UnknownStack {
+                stack: stack.clone(),
+            });
+        }
     }
 
     let feature = spec::parse_spec(&root.join(&config.project.spec))?;
@@ -138,7 +161,7 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
         .collect();
 
     // Resolve the selection against the spec inventory first: a filter that
-    // cannot match anything is exit 4 without ever invoking the runner.
+    // cannot match anything is exit 4 without ever invoking a runner.
     let mut warnings = Vec::new();
     let filter: Option<Vec<String>> = match selection {
         Selection::All => {
@@ -166,7 +189,7 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
             for name in &missing {
                 warnings.push(format!(
                     "plan batch {n} lists scenario {name:?} which is not in {} — \
-                     plan drift; run `craftsman plan lint` (Batch 3)",
+                     plan drift; run `craftsman plan lint`",
                     config.project.spec
                 ));
             }
@@ -177,19 +200,21 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
         }
     };
 
-    let project_dir = config
-        .verify
-        .cwd
-        .as_ref()
-        .map_or_else(|| root.clone(), |c| root.join(c));
-    let runner_target = config.verify.runner_target.as_deref().unwrap_or("spec");
+    let mut stacks = Vec::new();
+    for stack in &config.project.stacks {
+        let section = config.verify.stack(stack);
+        let results = run_stack(stack, &root, section, filter.as_deref())?;
+        stacks.push(StackReport {
+            stack: stack.clone(),
+            results,
+        });
+    }
 
-    let results = cucumber_rs::run(&project_dir, runner_target, filter.as_deref())?;
-
-    let counts = Counts::tally(&results);
-    let outcome = if results.is_empty() {
-        // The runner's own view of the spec matched nothing (ADR-002: empty
-        // matches exit 0 — the count is the only honest signal).
+    let counts = Counts::tally(stacks.iter().flat_map(|s| s.results.iter()));
+    let total: usize = stacks.iter().map(|s| s.results.len()).sum();
+    let outcome = if total == 0 {
+        // Every runner's own view of the spec matched nothing (ADR-002:
+        // empty matches exit 0 — the count is the only honest signal).
         Outcome::EmptySelection
     } else if counts.failed + counts.undefined + counts.ambiguous > 0 {
         Outcome::Failed
@@ -198,9 +223,45 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     };
 
     Ok(Report {
-        results,
+        stacks,
         counts,
         outcome,
         warnings,
     })
+}
+
+/// Dispatch one stack to its adapter.
+fn run_stack(
+    stack: &str,
+    root: &Path,
+    section: Option<&VerifyStack>,
+    filter: Option<&[String]>,
+) -> Result<Vec<ScenarioResult>, VerifyError> {
+    let project_dir = section
+        .and_then(|s| s.cwd.as_ref())
+        .map_or_else(|| root.to_path_buf(), |c| root.join(c));
+
+    match stack {
+        "rust" => {
+            let runner = section
+                .and_then(|s| s.runner.as_deref())
+                .unwrap_or("cucumber-rs");
+            if runner != "cucumber-rs" {
+                return Err(VerifyError::UnsupportedRunner {
+                    stack: "rust",
+                    runner: runner.to_owned(),
+                    supported: "cucumber-rs",
+                });
+            }
+            let runner_target = section
+                .and_then(|s| s.runner_target.as_deref())
+                .unwrap_or("spec");
+            Ok(cucumber_rs::run(&project_dir, runner_target, filter)?)
+        }
+        // Batch 4 fills these in with the pytest-bdd and cucumber-js
+        // adapters; until then the stack is known but not yet runnable.
+        other => Err(VerifyError::StackPending {
+            stack: other.to_owned(),
+        }),
+    }
 }
