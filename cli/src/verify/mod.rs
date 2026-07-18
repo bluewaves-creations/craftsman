@@ -180,7 +180,15 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     let mut stack_maps: BTreeMap<String, impact::StackMap> = BTreeMap::new();
     for stack in &config.project.stacks {
         let section = config.verify.stack(stack);
-        let run = run_stack(stack, &root, section, &feature, filter.as_deref(), full_run)?;
+        let run = run_stack(
+            stack,
+            &root,
+            section,
+            &feature,
+            &config.project.spec,
+            filter.as_deref(),
+            full_run,
+        )?;
         if let Some(map) = run.map {
             stack_maps.insert(stack.clone(), map);
         }
@@ -349,12 +357,14 @@ struct StackRun {
 /// Dispatch one stack to its adapter. The parsed `feature` anchors the
 /// swift selection recipes (the generated `@Suite` struct name derives
 /// from its name; xcodebuild selectors need each scenario's generated
-/// test signature).
+/// test signature); `spec` is the spec's root-relative path for the
+/// glue impact maps.
 fn run_stack(
     stack: &str,
     root: &Path,
     section: Option<&VerifyStack>,
     feature: &gherkin::Feature,
+    spec: &str,
     filter: Option<&[String]>,
     full_run: bool,
 ) -> Result<StackRun, VerifyError> {
@@ -396,14 +406,10 @@ fn run_stack(
                 .and_then(|s| s.runner_target.as_deref())
                 .unwrap_or("spec");
             let results = cucumber_rs::run(&project_dir, runner_target, filter)?;
-            // No cheap per-test coverage for cucumber-rs: record the glue
-            // (harness target) file only — informational, never excluding.
-            let map = full_run.then(|| {
-                impact::glue_stack_map(
-                    &scenario_names(&results),
-                    vec![prefixed(&format!("tests/{runner_target}.rs"))],
-                )
-            });
+            // No cheap per-test coverage for cucumber-rs: the harness
+            // target + the spec are the glue; `cwd` is the tree.
+            let harness = prefixed(&format!("tests/{runner_target}.rs"));
+            let map = full_run.then(|| spec_glue_map(&results, vec![harness], spec, cwd_prefix));
             Ok(StackRun { results, map })
         }
         "python" => {
@@ -435,30 +441,26 @@ fn run_stack(
             check_runner("typescript", "cucumber-js")?;
             let artifacts = root.join(".craftsman").join("cache").join("verify");
             let results = cucumber_js::run(&project_dir, &artifacts, filter)?;
-            // No cheap per-test coverage wired for cucumber-js: record the
-            // feature + step files under features/ — informational only.
-            let map = full_run.then(|| {
-                impact::glue_stack_map(
-                    &scenario_names(&results),
-                    impact::files_under(&project_dir.join("features"), root),
-                )
-            });
+            let map = full_run
+                .then(|| ts_stack_map(root, &project_dir, &artifacts, cwd_prefix, &results));
             Ok(StackRun { results, map })
         }
         "swift" => {
             check_runner("swift", "swift-testing")?;
-            run_swift_stack(root, section, feature, filter, full_run)
+            run_swift_stack(root, section, feature, spec, filter, full_run)
         }
         "bash" => {
             check_runner("bash", "bats")?;
             let bats_dir = crate::codegen::bats_dir(root, section);
             let results = bats::run(&bats_dir, filter)?;
-            // No coverage concept for bats: record the bats dir files —
-            // informational, never excluding.
+            // No coverage concept for bats: the bats dir files + the spec
+            // are the glue; `cwd` is the tree.
             let map = full_run.then(|| {
-                impact::glue_stack_map(
-                    &scenario_names(&results),
+                spec_glue_map(
+                    &results,
                     impact::files_under(&bats_dir, root),
+                    spec,
+                    cwd_prefix,
                 )
             });
             Ok(StackRun { results, map })
@@ -471,6 +473,51 @@ fn run_stack(
     }
 }
 
+/// A glue map over `files` + the spec, tree-scoped to the stack's cwd
+/// (rust and bash share this shape).
+fn spec_glue_map(
+    results: &[ScenarioResult],
+    mut files: Vec<String>,
+    spec: &str,
+    tree: Option<&str>,
+) -> impact::StackMap {
+    files.push(spec.to_owned());
+    impact::glue_stack_map(
+        &results
+            .iter()
+            .map(|r| r.scenario.clone())
+            .collect::<Vec<_>>(),
+        files,
+        tree.map(str::to_owned),
+    )
+}
+
+/// The typescript impact map: per-scenario feature + step-definition
+/// files from the Messages NDJSON the runner just wrote; coarse
+/// `features/` glue fallback when it is missing or unreadable.
+fn ts_stack_map(
+    root: &Path,
+    project_dir: &Path,
+    artifacts: &Path,
+    cwd_prefix: Option<&str>,
+    results: &[ScenarioResult],
+) -> impact::StackMap {
+    let tree = cwd_prefix.map(str::to_owned);
+    std::fs::read_to_string(artifacts.join("ts-msgs.ndjson"))
+        .ok()
+        .and_then(|ndjson| impact::messages_stack_map(&ndjson, cwd_prefix, tree.clone()).ok())
+        .unwrap_or_else(|| {
+            impact::glue_stack_map(
+                &results
+                    .iter()
+                    .map(|r| r.scenario.clone())
+                    .collect::<Vec<_>>(),
+                impact::files_under(&project_dir.join("features"), root),
+                tree,
+            )
+        })
+}
+
 /// The swift stack: the swift-testing adapter over the generated package,
 /// or — when `[verify.swift] scheme` is set — the xcodebuild adapter over
 /// the scheme (`codegen::swift` owns package/tests-dir resolution, the
@@ -479,6 +526,7 @@ fn run_swift_stack(
     root: &Path,
     section: Option<&VerifyStack>,
     feature: &gherkin::Feature,
+    spec: &str,
     filter: Option<&[String]>,
     full_run: bool,
 ) -> Result<StackRun, VerifyError> {
@@ -506,15 +554,23 @@ fn run_swift_stack(
     } else {
         swift_testing::run(&package_dir, &artifacts, &test_target, &suite, filter)?
     };
-    // No cheap per-test coverage for swift: record the test-target
-    // sources — informational, never excluding.
+    // No cheap per-test coverage for swift: the generated runner + step
+    // files + the spec are the glue; the package dir is the tree.
     let map = full_run.then(|| {
+        let mut files = impact::files_under(&tests_dir, root);
+        files.push(spec.to_owned());
+        let tree = package_dir
+            .strip_prefix(root)
+            .ok()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_string_lossy().into_owned());
         impact::glue_stack_map(
             &results
                 .iter()
                 .map(|r| r.scenario.clone())
                 .collect::<Vec<_>>(),
-            impact::files_under(&tests_dir, root),
+            files,
+            tree,
         )
     });
     Ok(StackRun { results, map })

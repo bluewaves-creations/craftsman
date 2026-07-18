@@ -137,7 +137,7 @@ fn python_full_verify_writes_a_coverage_impact_map() {
 
     let text = std::fs::read_to_string(&map_path).expect("full run writes the impact map");
     let doc: serde_json::Value = serde_json::from_str(&text).expect("map is valid JSON");
-    assert_eq!(doc["version"], 1, "{doc:#}");
+    assert_eq!(doc["version"], 2, "{doc:#}");
     let python = &doc["stacks"]["python"];
     assert_eq!(python["kind"], "coverage", "{doc:#}");
     let files = python["scenarios"]["Add an item to the list"]
