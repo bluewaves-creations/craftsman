@@ -11,7 +11,7 @@
 //! verbatim); error handling redone per repo conventions — malformed input
 //! and unknown status strings are rejected loudly instead of being swallowed.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -19,7 +19,7 @@ use thiserror::Error;
 ///
 /// Variant order doubles as severity: scenario status = `max` over step
 /// statuses (Passed < Skipped < Pending < Undefined < Ambiguous < Failed).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
     Passed,
@@ -31,7 +31,7 @@ pub enum Status {
 }
 
 /// Schema v1 (ADR-002, frozen): one normalized row per executed scenario.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScenarioResult {
     pub feature: String,
     pub scenario: String,

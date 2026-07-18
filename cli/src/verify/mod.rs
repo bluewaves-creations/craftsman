@@ -15,11 +15,12 @@
 pub mod adapters;
 pub mod impact;
 pub mod normalize;
+pub mod record;
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::config::{Config, ConfigError, VerifyStack};
@@ -94,7 +95,7 @@ impl Counts {
 }
 
 /// The verify verdict, mapped 1:1 onto exit codes by the command layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Outcome {
     Passed,
@@ -219,12 +220,18 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
         Outcome::Passed
     };
 
-    Ok(Report {
+    let report = Report {
         stacks,
         counts,
         outcome,
         warnings,
-    })
+    };
+    // Persist the run for `spec status` (single-writer). Empty runs never
+    // recorded — they would wipe a previous run's verdicts with nothing.
+    if total > 0 {
+        record::persist(&root, &report);
+    }
+    Ok(report)
 }
 
 /// What selection resolution produced: a runner filter (`None` = run

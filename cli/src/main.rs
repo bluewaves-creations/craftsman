@@ -508,10 +508,14 @@ enum AdrCommand {
 
 #[derive(Subcommand)]
 enum SpecCommand {
-    /// Scenario inventory: every scenario with tags, line, and status.
+    /// Scenario inventory with the last recorded verify verdicts: every
+    /// scenario with tags, line, and status, plus a per-batch rollup from
+    /// the plan.
     ///
-    /// Without recorded run results every scenario reports status
-    /// "unknown" — run `craftsman verify` for verdicts.
+    /// Verdicts come from .craftsman/cache/last-verify.json (written by
+    /// every `craftsman verify` run); scenarios the last run did not
+    /// include report "unknown", and a note flags records older than the
+    /// current git HEAD.
     Status {
         /// Emit the inventory as JSON on stdout
         #[arg(long)]
@@ -1478,55 +1482,169 @@ fn adr_stale_cmd(json: bool) -> anyhow::Result<i32> {
     Ok(EXIT_PASS)
 }
 
-/// Load config + spec relative to the config root.
-fn load_spec() -> anyhow::Result<(gherkin::Feature, String)> {
-    let cwd = std::env::current_dir().context("cannot determine working directory")?;
-    let loaded = Config::load(&cwd)?;
-    let spec_rel = loaded.config.project.spec;
-    let feature = spec::parse_spec(&loaded.root.join(&spec_rel))?;
-    Ok((feature, spec_rel))
+/// The recorded verdict mark for a scenario (spec status vocabulary —
+/// "unknown" when the last verify run did not include it).
+const fn status_mark(status: Option<craftsman::verify::normalize::Status>) -> &'static str {
+    use craftsman::verify::normalize::Status;
+    match status {
+        None => "unknown",
+        Some(Status::Passed) => "pass",
+        Some(Status::Skipped) => "skip",
+        Some(Status::Pending) => "pend",
+        Some(Status::Undefined) => "unde",
+        Some(Status::Ambiguous) => "ambi",
+        Some(Status::Failed) => "FAIL",
+    }
+}
+
+/// Per-batch rollup over the recorded verdicts: (green, red, unknown) —
+/// red = failed/undefined/ambiguous; skipped/pending count as unknown.
+fn batch_rollup(
+    batch: &plan::PlanBatch,
+    record: Option<&craftsman::verify::record::LastVerify>,
+) -> (usize, usize, usize) {
+    use craftsman::verify::normalize::Status;
+    let mut tally = (0, 0, 0);
+    for (_, name) in &batch.scenarios {
+        match record.and_then(|r| r.scenario_status(name)) {
+            Some(Status::Passed) => tally.0 += 1,
+            Some(Status::Failed | Status::Undefined | Status::Ambiguous) => tally.1 += 1,
+            _ => tally.2 += 1,
+        }
+    }
+    tally
 }
 
 fn spec_status(json: bool) -> anyhow::Result<i32> {
-    let (feature, spec_rel) = load_spec()?;
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let loaded = Config::load(&cwd)?;
+    let root = &loaded.root;
+    let spec_rel = &loaded.config.project.spec;
+    let feature = spec::parse_spec(&root.join(spec_rel))?;
     let entries = spec::inventory(&feature);
+    let record = craftsman::verify::record::load(root);
+    // Batches without a Scenarios list are not yet detailed — no rollup row.
+    let batches: Vec<plan::PlanBatch> = plan::parse_plan(&root.join(&loaded.config.project.plan))
+        .map(|all| {
+            all.into_iter()
+                .filter(|b| !b.scenarios.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let stale = record.as_ref().and_then(|r| r.stale(root));
 
     if json {
-        let doc = serde_json::json!({
-            "spec": spec_rel,
-            "feature": feature.name,
-            "scenarios": entries.iter().map(|e| {
-                serde_json::json!({
-                    "feature": e.feature,
-                    "scenario": e.scenario,
-                    "tags": e.tags,
-                    "line": e.line,
-                    "outline_rows": e.outline_rows,
-                    "status": "unknown",
-                })
-            }).collect::<Vec<_>>(),
-        });
-        println!("{doc:#}");
+        print_spec_status_json(
+            spec_rel,
+            &feature.name,
+            &entries,
+            record.as_ref(),
+            &batches,
+            stale,
+        );
     } else {
-        println!("Feature: {} ({spec_rel})", feature.name);
-        for e in &entries {
-            let tags = if e.tags.is_empty() {
-                String::new()
-            } else {
-                format!("  [@{}]", e.tags.join(" @"))
-            };
-            let rows = e
-                .outline_rows
-                .map(|n| format!("  ({n} example rows)"))
-                .unwrap_or_default();
-            println!("  unknown  {}  (line {}){tags}{rows}", e.scenario, e.line);
-        }
-        println!(
-            "{} scenarios — status unknown (no run results yet; run `craftsman verify`)",
-            entries.len()
+        print_spec_status_human(spec_rel, &feature.name, &entries, record.as_ref(), &batches);
+    }
+    if stale == Some(true) {
+        eprintln!(
+            "note: HEAD has moved since the last verify run — recorded verdicts \
+             may be stale; re-run `craftsman verify`"
         );
     }
     Ok(EXIT_PASS)
+}
+
+fn print_spec_status_json(
+    spec_rel: &str,
+    feature: &str,
+    entries: &[spec::ScenarioEntry],
+    record: Option<&craftsman::verify::record::LastVerify>,
+    batches: &[plan::PlanBatch],
+    stale: Option<bool>,
+) {
+    let doc = serde_json::json!({
+        "spec": spec_rel,
+        "feature": feature,
+        "scenarios": entries.iter().map(|e| {
+            let status = record.and_then(|r| r.scenario_status(&e.scenario));
+            serde_json::json!({
+                "feature": e.feature,
+                "scenario": e.scenario,
+                "tags": e.tags,
+                "line": e.line,
+                "outline_rows": e.outline_rows,
+                "status": status.map_or_else(|| serde_json::json!("unknown"), |s| serde_json::json!(s)),
+            })
+        }).collect::<Vec<_>>(),
+        "batches": batches.iter().map(|b| {
+            let (green, red, unknown) = batch_rollup(b, record);
+            serde_json::json!({
+                "batch": b.number,
+                "scenarios": b.scenarios.len(),
+                "green": green,
+                "red": red,
+                "unknown": unknown,
+            })
+        }).collect::<Vec<_>>(),
+        "last_verify": record.map(|r| serde_json::json!({
+            "recorded_at": r.recorded_at,
+            "head": r.head,
+            "outcome": r.outcome,
+            "stale": stale,
+        })),
+    });
+    println!("{doc:#}");
+}
+
+fn print_spec_status_human(
+    spec_rel: &str,
+    feature: &str,
+    entries: &[spec::ScenarioEntry],
+    record: Option<&craftsman::verify::record::LastVerify>,
+    batches: &[plan::PlanBatch],
+) {
+    println!("Feature: {feature} ({spec_rel})");
+    let mut greens = 0;
+    let mut reds = 0;
+    for e in entries {
+        let tags = if e.tags.is_empty() {
+            String::new()
+        } else {
+            format!("  [@{}]", e.tags.join(" @"))
+        };
+        let rows = e
+            .outline_rows
+            .map(|n| format!("  ({n} example rows)"))
+            .unwrap_or_default();
+        let status = record.and_then(|r| r.scenario_status(&e.scenario));
+        let mark = status_mark(status);
+        match mark {
+            "pass" => greens += 1,
+            "FAIL" | "unde" | "ambi" => reds += 1,
+            _ => {}
+        }
+        println!("  {mark:<7}  {}  (line {}){tags}{rows}", e.scenario, e.line);
+    }
+    for b in batches {
+        let (green, red, unknown) = batch_rollup(b, record);
+        println!(
+            "  batch {:<3} {green} green, {red} red, {unknown} unknown ({} scenarios)",
+            b.number,
+            b.scenarios.len()
+        );
+    }
+    match record {
+        Some(r) => println!(
+            "{} scenarios — {greens} green, {reds} red, {} unknown (last verify {})",
+            entries.len(),
+            entries.len() - greens - reds,
+            r.recorded_at
+        ),
+        None => println!(
+            "{} scenarios — status unknown (no run results yet; run `craftsman verify`)",
+            entries.len()
+        ),
+    }
 }
 
 fn spec_lint(json: bool) -> anyhow::Result<i32> {

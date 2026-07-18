@@ -205,6 +205,18 @@ fn scaffolded_green_project(w: &mut CliWorld) {
     scaffold_fixture(w, "craftsman-spec-impact-fixture", GREEN_FIXTURE_SPEC);
 }
 
+#[given("a scaffolded rust project with a recorded green verify run")]
+fn scaffolded_recorded_project(w: &mut CliWorld) {
+    scaffold_fixture(w, "craftsman-spec-status-fixture", GREEN_FIXTURE_SPEC);
+    w.run_craftsman(&["verify"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming verify must pass:\n{}",
+        w.combined_output()
+    );
+}
+
 #[given("a scaffolded rust project whose spec has an unimplemented step")]
 fn scaffolded_undefined_project(w: &mut CliWorld) {
     // The harness implements only "a truth" / "it holds": the extra step

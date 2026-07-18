@@ -13,6 +13,13 @@ Feature: Craftsman CLI core
     And the output contains "Second behavior"
     And the output contains "unknown"
 
+  Scenario: Spec status shows the last verify verdicts
+    Given a scaffolded rust project with a recorded green verify run
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "pass"
+    And the output contains "The loop closes"
+
   Scenario: Spec status emits machine-readable JSON
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     When I run craftsman with "spec status --json"
