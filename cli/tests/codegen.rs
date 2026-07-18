@@ -189,6 +189,7 @@ fn swift_steps(holds: bool) -> String {
     )
 }
 
+// craftsman-health: allow max-function-lines — live round-trip narrative (gen → green → red) that reads top-to-bottom; the phases already share extracted helpers (swift_steps, assert_trio_phase)
 #[test]
 fn swift_round_trip_a_passes_b_undefined_then_a_fails() {
     let Some(version) = swift_version() else {
