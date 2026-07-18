@@ -355,6 +355,56 @@ fn empty_project_directory(w: &mut CliWorld) {
     let _ = w.project_dir();
 }
 
+/// `git init` + `git add -A` in the fixture dir (arch and health census
+/// tracked files via `git ls-files`; no commit needed).
+fn git_init_add(dir: &std::path::Path) {
+    for args in [&["init", "--quiet"][..], &["add", "-A"][..]] {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .expect("spawn git");
+        assert!(status.success(), "git {args:?} failed in {}", dir.display());
+    }
+}
+
+#[given("a craftsman project with an arch deny rule and a violating import")]
+fn arch_violation_fixture(w: &mut CliWorld) {
+    w.write(
+        "craftsman.toml",
+        "[project]\nname = \"fixture\"\nstacks = [\"rust\"]\n\n[gates]\narch = \"strict\"\n\n[arch]\ndeny = [\"src/a -> src/b\"]\n",
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let dir = w.project_dir();
+    std::fs::create_dir_all(dir.join("src/a")).expect("mkdirs");
+    std::fs::create_dir_all(dir.join("src/b")).expect("mkdirs");
+    w.write("src/a/mod.rs", "use crate::b::helper;\n");
+    w.write("src/b/mod.rs", "pub fn helper() {}\n");
+    git_init_add(&dir);
+}
+
+#[given("a craftsman project whose source has a function longer than the health limit")]
+fn health_long_function_fixture(w: &mut CliWorld) {
+    w.write(
+        "craftsman.toml",
+        "[project]\nname = \"fixture\"\nstacks = [\"rust\"]\n\n[gates]\nhealth = \"strict\"\n\n[health]\nmax-function-lines = 5\n",
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let dir = w.project_dir();
+    std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
+    w.write(
+        "src/lib.rs",
+        "pub fn sprawling() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    let f = 6;\n    let _ = a + b + c + d + e + f;\n}\n",
+    );
+    git_init_add(&dir);
+}
+
 #[given("the project is a fresh git repository")]
 fn fresh_git_repository(w: &mut CliWorld) {
     let dir = w.project_dir();

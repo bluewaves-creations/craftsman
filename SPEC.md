@@ -130,6 +130,31 @@ Feature: Craftsman CLI core
     Then the exit code is 0
     And the output contains "cache"
 
+  Scenario: Arch rejects a denied dependency direction
+    Given a craftsman project with an arch deny rule and a violating import
+    When I run craftsman with "arch"
+    Then the exit code is 1
+    And the output contains "src/a"
+    And the output contains "src/b"
+
+  Scenario: Health flags an over-long function
+    Given a craftsman project whose source has a function longer than the health limit
+    When I run craftsman with "health"
+    Then the exit code is 1
+    And the output contains "max-function-lines"
+
+  Scenario: Mutate refuses full runs without explicit consent
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "mutate --all"
+    Then the exit code is 2
+    And the output contains "--yes-slow"
+
+  Scenario: Runtime gates refuse when unconfigured
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "perf"
+    Then the exit code is 3
+    And the output contains "not configured"
+
   Scenario: Commit refuses when nothing is staged
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     And the project is a fresh git repository
