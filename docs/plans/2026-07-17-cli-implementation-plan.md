@@ -200,3 +200,19 @@ Scenarios:
 - [x] **ADR-005 — descope register**: anything above that lands as "won't do for 0.2" (candidates: none expected; xcodebuild-on-Linux is N/A by nature) gets its ADR line, human-approved; the honest-undone register in this plan is then EMPTY. *(Written (Proposed — the human approves/amends): the four remote-gated items, k6 live artifact, live performAccessibilityAudit, sub-lettered rollup, pydantic 0.0.0 inventory stamp, and the recorded mutate-at-boundaries policy. This plan's honest-undone register now POINTS THERE.)*
 - Success: `gate status` shows security+health strict at 0; CI green on the remote; the register empty or ADR'd; tag v0.2.0. *(Met locally 2026-07-18 except the remote-gated third: security+health strict at 0 (all five enabled gates strict, baselines empty); register ADR'd (ADR-005, Proposed). CI-on-remote pending the human's repo decision — tagged v0.2.0-rc1, not v0.2.0: 0.2.0 stays reserved for CI-green on a real remote.)*
 
+
+## Batch 10 — Release channel (v0.2.0)
+
+*(revised in at the 9c boundary: the remote exists and CI is green — run 29645819083 — so 9c's remote-gated checkboxes route here. The update self-update path is new externally visible behavior: the spec delta is task 1 and this batch's Scenarios list is filled from it once the human approves; the batch does not start implementation before then.)*
+
+Scenarios: (pending the craftsman-spec delta in task 1 — filled on approval)
+
+Tasks:
+- craftsman-spec delta for `craftsman update`: release-channel detection, self-update happy path (hermetically testable form), no-channel fallback message — human approves
+- `dist generate` — commit the release workflow now that the repository URL exists
+- Enable the swift-linux canary job (setup-swift v2.4.0, desk-verified in 9c) and observe its first live run
+- Implement axoupdater-backed `craftsman update` behind release availability (docs: axoupdater via craftsman docs add — docs.rs)
+- ADR-005: human approves/amends the deferral register
+- Cut the first GitHub Release; tag v0.2.0 at CI-green
+
+Success: craftsman verify --batch 10 exits 0 (post-delta scenarios) AND CI green on the release workflow's first run
