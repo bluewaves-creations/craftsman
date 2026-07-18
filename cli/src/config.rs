@@ -73,6 +73,112 @@ pub struct Config {
     pub docs: Docs,
     #[serde(default)]
     pub ledger: Ledger,
+    /// `[health]` — thresholds for the health gate (ADR-004: gate settings
+    /// are top-level tables like `[verify]`, because `[gates] health =
+    /// "baseline"` already claims the `gates.health` TOML key).
+    #[serde(default)]
+    pub health: Health,
+    /// `[mutate]` — mutation-testing settings.
+    #[serde(default)]
+    pub mutate: Mutate,
+    /// `[arch]` — dependency-direction fitness rules.
+    #[serde(default)]
+    pub arch: Arch,
+    /// `[perf]` — absent = the perf gate refuses to run (exit 3).
+    pub perf: Option<Perf>,
+    /// `[a11y]` — absent = the a11y gate refuses to run (exit 3).
+    pub a11y: Option<A11y>,
+    /// `[visual]` — absent = the visual gate refuses to run (exit 3).
+    pub visual: Option<Visual>,
+}
+
+/// `[health]` thresholds. Defaults per the production-grade research doc:
+/// function/file size, complexity, and duplication are the evidence-backed
+/// entropy metrics.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Health {
+    /// Max lines per function (default 60).
+    pub max_function_lines: Option<usize>,
+    /// Max lines per file (default 400) — health's metric, not arch's
+    /// (ADR-004 corrects the design-doc sketch).
+    pub max_file_lines: Option<usize>,
+    /// Max cyclomatic-complexity approximation per function (default 12).
+    pub max_complexity: Option<usize>,
+    /// Duplicate-block window in normalized lines (default 12).
+    pub dup_window: Option<usize>,
+}
+
+impl Health {
+    #[must_use]
+    pub fn max_function_lines(&self) -> usize {
+        self.max_function_lines.unwrap_or(60)
+    }
+    #[must_use]
+    pub fn max_file_lines(&self) -> usize {
+        self.max_file_lines.unwrap_or(400)
+    }
+    #[must_use]
+    pub fn max_complexity(&self) -> usize {
+        self.max_complexity.unwrap_or(12)
+    }
+    #[must_use]
+    pub fn dup_window(&self) -> usize {
+        self.dup_window.unwrap_or(12)
+    }
+}
+
+/// `[mutate]` settings.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Mutate {
+    /// Minimum mutation score (percent, 0–100) on changed lines
+    /// (default 60).
+    pub min_score: Option<f64>,
+}
+
+impl Mutate {
+    #[must_use]
+    pub fn min_score(&self) -> f64 {
+        self.min_score.unwrap_or(60.0)
+    }
+}
+
+/// `[arch]` — fitness rules v1: dependency direction only.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Arch {
+    /// `"A -> B"` rules: a file under path prefix A (stack-root-relative)
+    /// must not import anything resolving under prefix B.
+    #[serde(default)]
+    pub deny: Vec<String>,
+}
+
+/// `[perf]` — exactly one runner: Lighthouse CI (`lighthouse-config`) or
+/// k6 (`k6-script`).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Perf {
+    /// Path to a lighthouserc config for `lhci autorun`.
+    pub lighthouse_config: Option<String>,
+    /// Path to a k6 script with thresholds; runs via the pinned k6 binary.
+    pub k6_script: Option<String>,
+}
+
+/// `[a11y]` — Playwright test filter for axe-based specs (user-land specs).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct A11y {
+    /// Glob/filter passed to `playwright test` selecting the a11y specs.
+    pub test_glob: String,
+}
+
+/// `[visual]` — Playwright test filter for screenshot-comparison specs.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Visual {
+    /// Glob/filter passed to `playwright test` selecting the visual specs.
+    pub test_glob: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,16 +293,16 @@ pub struct Gates {
 }
 
 impl Gates {
-    /// Every gate in command-surface order with its configured mode
-    /// (`None` = off). The verify → lint → security prefix is the Batch 6a
-    /// orchestration order.
+    /// Every gate in check-all orchestration order (Batch 6b): verify →
+    /// lint → arch → security → health → mutate → perf → a11y → visual.
+    /// `None` = off. Cheap static gates run before slow/runtime ones.
     #[must_use]
     pub const fn by_name(&self) -> [(&'static str, Option<GateMode>); 9] {
         [
             ("verify", self.verify),
             ("lint", self.lint),
-            ("security", self.security),
             ("arch", self.arch),
+            ("security", self.security),
             ("health", self.health),
             ("mutate", self.mutate),
             ("perf", self.perf),
@@ -364,9 +470,45 @@ mod tests {
 
             [ledger]
             co-author = "Claude Fable 5 <noreply@anthropic.com>"
+
+            [health]
+            max-function-lines = 80
+            dup-window = 10
+
+            [mutate]
+            min-score = 75.0
+
+            [arch]
+            deny = ["src/domain -> src/infra"]
+
+            [perf]
+            lighthouse-config = "lighthouserc.json"
+
+            [a11y]
+            test-glob = "e2e/a11y"
+
+            [visual]
+            test-glob = "e2e/visual"
             "#,
         )
         .expect("documented example must parse");
+        assert_eq!(c.health.max_function_lines(), 80);
+        assert_eq!(c.health.max_file_lines(), 400, "unset key keeps default");
+        assert_eq!(c.health.dup_window(), 10);
+        assert!((c.mutate.min_score() - 75.0).abs() < f64::EPSILON);
+        assert_eq!(c.arch.deny, vec!["src/domain -> src/infra".to_owned()]);
+        assert_eq!(
+            c.perf.as_ref().and_then(|p| p.lighthouse_config.as_deref()),
+            Some("lighthouserc.json")
+        );
+        assert_eq!(
+            c.a11y.as_ref().map(|a| a.test_glob.as_str()),
+            Some("e2e/a11y")
+        );
+        assert_eq!(
+            c.visual.as_ref().map(|v| v.test_glob.as_str()),
+            Some("e2e/visual")
+        );
         assert_eq!(c.gates.verify, Some(GateMode::Strict));
         assert_eq!(c.gates.lint, Some(GateMode::Baseline));
         assert_eq!(c.gates.tools["gitleaks"], "8.24.0");
@@ -382,6 +524,30 @@ mod tests {
             c.ledger.co_author.as_deref(),
             Some("Claude Fable 5 <noreply@anthropic.com>")
         );
+    }
+
+    #[test]
+    fn gate_settings_default_sanely_when_absent() {
+        let c = parse(MINIMAL).expect("minimal config must parse");
+        assert_eq!(c.health.max_function_lines(), 60);
+        assert_eq!(c.health.max_file_lines(), 400);
+        assert_eq!(c.health.max_complexity(), 12);
+        assert_eq!(c.health.dup_window(), 12);
+        assert!((c.mutate.min_score() - 60.0).abs() < f64::EPSILON);
+        assert!(c.arch.deny.is_empty());
+        assert!(c.perf.is_none(), "absent [perf] means not configured");
+        assert!(c.a11y.is_none());
+        assert!(c.visual.is_none());
+    }
+
+    #[test]
+    fn rejects_unknown_health_key_and_a11y_without_glob() {
+        let err = parse(&format!("{MINIMAL}\n[health]\nmax-vibes = 3\n"))
+            .expect_err("unknown health key must be rejected");
+        assert!(matches!(err, ConfigError::Parse { .. }), "{err}");
+        let err = parse(&format!("{MINIMAL}\n[a11y]\n"))
+            .expect_err("[a11y] without test-glob must be rejected");
+        assert!(matches!(err, ConfigError::Parse { .. }), "{err}");
     }
 
     #[test]
