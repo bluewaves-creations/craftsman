@@ -203,16 +203,53 @@ Scenarios:
 
 ## Batch 10 — Release channel (v0.2.0)
 
-*(revised in at the 9c boundary: the remote exists and CI is green — run 29645819083 — so 9c's remote-gated checkboxes route here. The update self-update path is new externally visible behavior: the spec delta is task 1 and this batch's Scenarios list is filled from it once the human approves; the batch does not start implementation before then.)*
+*(revised in at the 9c boundary; delta APPROVED by the human 2026-07-18 and committed as SPEC.delta.md — bcb7dc2. Its four scenarios — "Update without an install receipt explains the reinstall path", "Update refreshes the installed skills from the binary", "Update with an unreachable release channel fails loudly", "Update self-updates to the latest release" (@requires-network) — merge into SPEC.md at this boundary; the Scenarios list below stays empty until then so plan lint tracks only executed truth. Dogfood learning folded in: every dogfood run so far used cli/target/debug directly — the install path (install.sh → release binary → craftsman setup) has never been exercised on this machine; this batch ends by exercising it for real.)*
 
-Scenarios: (pending the craftsman-spec delta in task 1 — filled on approval)
+Scenarios: (in SPEC.delta.md until the boundary merge — four update scenarios, approved)
 
 Tasks:
-- craftsman-spec delta for `craftsman update`: release-channel detection, self-update happy path (hermetically testable form), no-channel fallback message — human approves
+- Implement axoupdater-backed `craftsman update`: install-receipt detection (NoReceipt → exit 0 + current version + install.sh pointer), skill refresh from the embedded copies, unreachable-channel failure naming the channel (docs: axoupdater 0.10.0 via craftsman docs — already declared in AGENTS.md)
+- Wire the three hermetic delta scenarios into the harness red-first; implement to green
 - `dist generate` — commit the release workflow now that the repository URL exists
-- Enable the swift-linux canary job (setup-swift v2.4.0, desk-verified in 9c) and observe its first live run
-- Implement axoupdater-backed `craftsman update` behind release availability (docs: axoupdater via craftsman docs add — docs.rs)
+- Enable the swift-linux canary job (setup-swift v2.4.0, desk-verified in 9c) and observe its first live run; re-park with the observed failure if issue #677 bites
 - ADR-005: human approves/amends the deferral register
-- Cut the first GitHub Release; tag v0.2.0 at CI-green
+- Cut the first GitHub Release; tag v0.2.0 at CI-green; merge SPEC.delta.md into SPEC.md and delete the delta file
+- Redeploy for real: `sh install.sh` against the v0.2.0 release, `craftsman setup`, `craftsman doctor` green from the installed binary — retire the debug-build dogfood path; run the @requires-network self-update scenario against the live release
 
-Success: craftsman verify --batch 10 exits 0 (post-delta scenarios) AND CI green on the release workflow's first run
+Success: craftsman verify exits 0 with the merged update scenarios AND CI green on the release workflow's first run AND doctor green from the installed (not debug) binary
+
+## Batch 11 — Retro-spec catch-up (whole-surface, human-directed)
+
+*(directed by the human 2026-07-18: the spec catches up with the complete implemented behavior. Justified exception to recover's no-backfill rule, recorded here: this spec is executable and continuously verified — recovered scenarios cannot rot — and every command is an active critical path. Recover rules still bind: verified-only, each scenario citing its characterization test; unpinned behavior becomes labeled gap work items, never scenarios.)*
+
+*(status 2026-07-18: the recover draft is COMPLETE — SPEC.recover.md, 604 lines: ~85 behaviors inventoried, 23 already covered by the existing 35 scenarios, 52 proposed scenarios each citing a passing test or one of 13 executed CLI observations, 9 unpinned behaviors registered as GAP-R01..R09 and routed to Batch 12. AWAITING HUMAN APPROVAL — wiring does not start before it.)*
+
+Scenarios: (in SPEC.recover.md until approval + boundary merge — 52 recovered scenarios, drafted)
+
+Tasks:
+- Human reviews SPEC.recover.md: approve whole, amend, or trim — cuts are cheap now, expensive after wiring
+- Wire approved scenarios into the cucumber-rs harness in citation order (densest areas first: docs 7, verify+impact 7, gate modes 5, adopt 4, setup 4); merge into SPEC.md under "Current behavior (recovered)" green, respecting the Batch 10 delta ordering
+- Batch the wiring in verify-green sub-steps of ≤10 scenarios so a red harness never blocks the commit gate mid-merge
+- Delete SPEC.recover.md once merged; its gap register survives as Batch 12
+
+Success: craftsman verify exits 0 with all merged recovered scenarios; spec lint clean; plan lint clean
+
+## Batch 12 — Gap closure (GAP-R01..R09, test-first)
+
+*(scaffolded from the recover inventory 2026-07-18: nine behaviors the retro-spec could not cite a test for. Recover rules bind — no scenario lands until a characterization test pins the behavior. Order: cheapest pins first; each gap becomes one `test:` commit (test only, proving current behavior) and, where the behavior deserves a spec promise, a one-line spec delta the human approves at the boundary.)*
+
+Scenarios: (none yet — scenarios are drafted only from tests this batch writes; human approves the resulting delta)
+
+Tasks:
+- GAP-R01 — drive `adopt --start-phase 2` end-to-end in cli/tests/bootstrap.rs: baseline recorded for every baseline-mode gate (adopt.rs:312 never executed by a test)
+- GAP-R02 — CLI-level test: `verify --impact` computed-empty set exits 0 with the loud "nothing to run" note, distinct from exit 4
+- GAP-R03 — orchestration tests: `check-all --changed` maps verify to impact selection and narrows lint; `verify --batch N` warns on plan drift and runs the found subset
+- GAP-R04 — `lint --changed` narrows to files changed against HEAD
+- GAP-R05 — security threshold partition: below-threshold findings inform, never block
+- GAP-R06 — broken scanner is exit 3, never a green security gate
+- GAP-R07 — `adr stale` staleness verdict from git history (flow test, not just cited-path extraction)
+- GAP-R08 — `docs get` objects-inv on-demand fetch-then-cache path (hermetic: local file:// inventory)
+- GAP-R09 — `Dependency:` trailer rendering with a non-empty dependency list
+- craftsman-spec delta for the subset worth promising in SPEC.md — human approves; merge at boundary
+
+Success: craftsman verify exits 0; cargo test green with all nine pins; any approved gap scenarios merged green
