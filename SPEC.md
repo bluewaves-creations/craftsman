@@ -213,6 +213,33 @@ Feature: Craftsman CLI core
     And the sandboxed home holds the canonical skill "craftsman-init" with a sentinel
     And the sandboxed home serves "craftsman-init" to Claude Code via a symlink
 
+  Scenario: Update without an install receipt explains the reinstall path
+    Given a home directory with no craftsman install receipt
+    When I run craftsman with "update"
+    Then the exit code is 0
+    And the output names the current version
+    And the output contains "install.sh"
+
+  Scenario: Update refreshes the installed skills from the binary
+    Given a home directory with an outdated craftsman skill installed
+    When I run craftsman with "update"
+    Then the exit code is 0
+    And the installed skill matches the binary's embedded copy
+
+  Scenario: Update with an unreachable release channel fails loudly
+    Given a home directory with a craftsman install receipt for an unreachable release source
+    When I run craftsman with "update"
+    Then the exit code is 1
+    And the output names the release channel
+    And the output does not claim success
+
+  @requires-network
+  Scenario: Update self-updates to the latest release
+    Given craftsman was installed from a GitHub release older than the latest
+    When I run craftsman with "update"
+    Then the exit code is 0
+    And the reported version afterwards equals the latest release version
+
   Scenario: Adopt enforces phase ordering
     Given an empty git repository directory
     When I run craftsman with "adopt --start-phase 2"

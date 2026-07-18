@@ -205,7 +205,11 @@ Scenarios:
 
 *(revised in at the 9c boundary; delta APPROVED by the human 2026-07-18 and committed as SPEC.delta.md — bcb7dc2. Its four scenarios — "Update without an install receipt explains the reinstall path", "Update refreshes the installed skills from the binary", "Update with an unreachable release channel fails loudly", "Update self-updates to the latest release" (@requires-network) — merge into SPEC.md at this boundary; the Scenarios list below stays empty until then so plan lint tracks only executed truth. Dogfood learning folded in: every dogfood run so far used cli/target/debug directly — the install path (install.sh → release binary → craftsman setup) has never been exercised on this machine; this batch ends by exercising it for real.)*
 
-Scenarios: (in SPEC.delta.md until the boundary merge — four update scenarios, approved)
+Scenarios:
+- Update without an install receipt explains the reinstall path
+- Update refreshes the installed skills from the binary
+- Update with an unreachable release channel fails loudly
+- Update self-updates to the latest release
 
 Tasks:
 - Implement axoupdater-backed `craftsman update`: install-receipt detection (NoReceipt → exit 0 + current version + install.sh pointer), skill refresh from the embedded copies, unreachable-channel failure naming the channel (docs: axoupdater 0.10.0 via craftsman docs — already declared in AGENTS.md)

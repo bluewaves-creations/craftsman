@@ -18,6 +18,7 @@
 
 mod project_steps;
 mod repo_steps;
+mod update_steps;
 
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -34,6 +35,9 @@ pub struct CliWorld {
     fixed_dir: Option<PathBuf>,
     /// A sandboxed `$HOME` for the setup scenarios.
     home: Option<tempfile::TempDir>,
+    /// Extra environment for the next craftsman invocation (e.g. a dead
+    /// release-channel endpoint for the unreachable-update scenario).
+    env: Vec<(String, String)>,
     output: Option<Output>,
 }
 
@@ -63,7 +67,15 @@ impl CliWorld {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_craftsman"));
         cmd.args(args).current_dir(&dir);
         if let Some(home) = &self.home {
-            cmd.env("HOME", home.path());
+            // A sandboxed home must really sandbox: without these removals
+            // the machine's real receipt/config would leak into the run.
+            cmd.env("HOME", home.path())
+                .env_remove("XDG_CONFIG_HOME")
+                .env_remove("AXOUPDATER_CONFIG_PATH")
+                .env_remove("CRAFTSMAN_INSTALLER_GITHUB_BASE_URL");
+        }
+        for (k, v) in &self.env {
+            cmd.env(k, v);
         }
         self.output = Some(cmd.output().expect("spawn craftsman"));
     }
@@ -84,6 +96,19 @@ impl CliWorld {
     }
 }
 
+/// `@requires-network` scenarios only run when the live environment is
+/// explicitly granted (`CRAFTSMAN_LIVE=1`). Excluded scenarios emit no
+/// result at all, so `spec status` reports them as unknown — visible,
+/// never silently green.
+fn scenario_filter(
+    _f: &cucumber::gherkin::Feature,
+    _r: Option<&cucumber::gherkin::Rule>,
+    s: &cucumber::gherkin::Scenario,
+) -> bool {
+    std::env::var("CRAFTSMAN_LIVE").is_ok_and(|v| v == "1")
+        || !s.tags.iter().any(|t| t == "requires-network")
+}
+
 #[tokio::main]
 async fn main() {
     // Repo-root SPEC.md, one directory above this cargo package. The
@@ -95,10 +120,10 @@ async fn main() {
         let file = std::fs::File::create(&path).unwrap_or_else(|e| panic!("create {path}: {e}"));
         CliWorld::cucumber()
             .with_writer(cucumber::writer::Json::new(file))
-            .run(spec)
+            .filter_run(spec, scenario_filter)
             .await;
     } else {
         // Direct `cargo test --test spec`: human output, non-zero on red.
-        CliWorld::run(spec).await;
+        CliWorld::filter_run(spec, scenario_filter).await;
     }
 }
