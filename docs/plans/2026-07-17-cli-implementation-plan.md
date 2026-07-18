@@ -294,6 +294,8 @@ Success: craftsman verify exits 0 with both merged scenarios green
 
 *(Release boundary: v0.3.0 is cut when Batches 13+14 land — the update from v0.2.0 also delivers the first real proof of the self-update download leg noted at the Batch 10 close-out.)*
 
+*(Release close-out 2026-07-18 — v0.3.0 SHIPPED: tag cut only after CI green (one CI red first: the new gate-tools check made the repo-level doctor e2e machine-dependent on fresh runners — fixed by sandboxing CRAFTSMAN_TOOLS_DIR in the test, 965f702); release workflow green, 11 assets. THE DOWNLOAD LEG IS PROVEN: the installed v0.2.0 binary ran `craftsman update` against the live channel and reported updated 0.2.0 → 0.3.0 after a real download ("downloading craftsman 0.3.0 aarch64-apple-darwin"), receipt honored, prefix ~/.cargo — closing the Batch 10 caveat. Second update run from the new binary: up-to-date, and the skills payload refreshed (craftsman-init: updated). Doctor 6/6 from the installed binary, gate-tools resolving all three real pins. Live @requires-network scenario green under CRAFTSMAN_LIVE=1; full verify re-run afterwards restored the 43-green record (GAP-R10 behavior, still pinned in Batch 12). install.sh idempotency proven by two consecutive sandboxed runs (Batch 13's deferred success line).)*
+
 ## Batch 15 — The import gear (blocked on ADR-006 approval)
 
 *(scaffolded 2026-07-18 per the human's doctrine: importing a tree from elsewhere is distinct from adopting your own; imported code gets a solid new system that surfaces its flaws — full-gate audit, explicit debt disposal, never a silent baseline. Design: ADR-006. Task detail stays coarse until the ADR and the delta scenarios are approved; detail at the Batch 14 boundary.)*

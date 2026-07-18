@@ -112,8 +112,8 @@ them: Apple's skills own platform idiom, Craftsman owns process.
 
 ## Self-hosting
 
-This repo eats its own cooking: `SPEC.md` at the root holds **39
-scenarios** (38 hermetic, one `@requires-network`, run live against the
+This repo eats its own cooking: `SPEC.md` at the root holds **44
+scenarios** (43 hermetic, one `@requires-network`, run live against the
 real release channel) executed by cucumber-rs through `craftsman verify`;
 every commit goes through `craftsman commit`; CI finishes with
 `check-all` on fresh macOS and Linux runners plus a Swift-on-Linux
@@ -135,10 +135,16 @@ you can hand to a colleague lives at
 
 ## Status
 
-**v0.2.0** — released via cargo-dist (shell installer + macOS arm64/x86_64
+**v0.3.0** — released via cargo-dist (shell installer + macOS arm64/x86_64
 and Linux x86_64 tarballs). `craftsman update` self-updates from the
 release channel behind the install receipt and refreshes the installed
-skills from the binary. Remaining honest-undone lives in the plan's gap
+skills from the binary — proven live by the v0.2.0 → v0.3.0 update itself.
+This release hardens the verdict path from the first external dogfood:
+verify never installs dependencies (a `bunx` auto-fetch once executed a
+registry dependency-confusion stub — now structurally impossible),
+`craftsman commit` can make a repository's first commit, the typescript
+scaffold produces a runner-discoverable spec, and `doctor` audits the
+pinned gate tools. Remaining honest-undone lives in the plan's gap
 register (Batch 12) and [ADR-005](decisions/) — this project keeps a
 public list of what is *not* finished, because a system built on
 unforgeable verdicts doesn't get to round up about itself.
