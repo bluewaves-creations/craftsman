@@ -9,9 +9,9 @@ Every dependency extends the project's attack surface. The five-point protocol b
 Hallucinated package names are a documented attack class: models emit plausible non-existent packages at scale, the fake names recur, and attackers register them (USENIX 2025: ~21.7% hallucinated-package rate in open models; 43% of fake names recur, making them squattable). Never install to find out. Query the registry first and read what comes back:
 
 ```bash
-npm view <pkg> name version time.created   # JS/TS
-pip index versions <pkg>                    # Python
-cargo info <pkg>                            # Rust
+bun pm view <pkg> version   # JS/TS — run inside the project (needs package.json)
+uv run pip index versions <pkg>   # Python (uv-managed environment)
+cargo info <pkg>                  # Rust
 # Swift: confirm the exact repo URL resolves and matches the vendor's official org
 ```
 
@@ -20,8 +20,8 @@ Reject on any of: the name does not exist; it exists but was created recently wi
 ## 2. Known vulnerabilities
 
 ```bash
-npm audit          # JS/TS
-pip-audit          # Python
+bun audit          # JS/TS
+uvx pip-audit      # Python
 cargo audit        # Rust
 osv-scanner --lockfile=<lockfile>   # any stack, incl. Swift Package.resolved
 ```
@@ -42,14 +42,14 @@ GPL-3.0 or AGPL-3.0 anywhere in the tree → stop and get explicit human approva
 
 ## 4. Maintenance health
 
-Check the registry metadata and repository: last release older than ~12 months → flag; a single maintainer (bus factor 1) on a load-bearing package → flag; deprecated or archived → reject outright. Example: `npm view <pkg> time.modified maintainers deprecated` answers all three for JS in one command. A flag is not an automatic rejection — it is a line in the justification, weighed against how load-bearing the dependency will be.
+Check the registry metadata and repository: last release older than ~12 months → flag; a single maintainer (bus factor 1) on a load-bearing package → flag; deprecated or archived → reject outright. Example: `bun pm view <pkg> time.modified maintainers deprecated` answers all three for JS in one command (verified: field access works like npm view). A flag is not an automatic rejection — it is a line in the justification, weighed against how load-bearing the dependency will be.
 
 ## 5. Duplication — search what you already have
 
 Before adding capability, prove the tree doesn't already provide it:
 
 ```bash
-npm ls --all | grep -i <capability>    # or: read package.json deps
+bun pm ls --all | grep -i <capability>    # or: read package.json deps
 uv tree | grep -i <capability>          # Python
 cargo tree | grep -i <capability>       # Rust
 ```
@@ -63,7 +63,7 @@ Commit the addition alone — `chore(deps)`, never mixed with the feature or a f
 ```
 chore(deps): add zod for runtime boundary validation
 
-Dependency: zod@3.23.8, MIT, npm audit clean, registry-verified
+Dependency: zod@4.4.3, MIT, bun audit clean, registry-verified
   (published 2020, 12M weekly downloads); validates API request
   bodies at the boundary — replaces hand-written validators.
 Alternatives-considered: yup (larger bundle), joi (no static inference)
