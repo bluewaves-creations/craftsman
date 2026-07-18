@@ -65,6 +65,24 @@ pub fn run(
             )?;
             match run {
                 ToolRun::Ran(mut tool_findings) => {
+                    // Tools disagree on path shape (cargo fmt: absolute
+                    // and canonicalized; clippy: workspace-relative) —
+                    // normalize to root-relative before any comparison, or
+                    // the changed retain silently drops absolute-path
+                    // findings. Both the root as given and its canonical
+                    // form are stripped (macOS: /var vs /private/var).
+                    let mut prefixes = vec![format!("{}/", root.display())];
+                    if let Ok(canonical) = root.canonicalize() {
+                        prefixes.push(format!("{}/", canonical.display()));
+                    }
+                    for f in &mut tool_findings {
+                        if let Some(rel) = prefixes
+                            .iter()
+                            .find_map(|p| f.file.strip_prefix(p.as_str()))
+                        {
+                            f.file = rel.to_owned();
+                        }
+                    }
                     if let Some(files) = changed
                         && !tool.accepts_files
                     {
