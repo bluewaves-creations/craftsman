@@ -168,6 +168,10 @@ pub struct Applied {
     pub baselined: usize,
     /// Human note when the snapshot auto-ratcheted smaller.
     pub ratchet: Option<String>,
+    /// Whether a recorded baseline existed at all — `false` means every
+    /// finding is "new" only because nothing was ever recorded, and the
+    /// refusal should name the `gate baseline` remedy.
+    pub had_baseline: bool,
 }
 
 /// Split `findings` into baselined and new against the gate's snapshot,
@@ -191,6 +195,7 @@ pub fn apply(
             new_findings: findings,
             baselined: 0,
             ratchet: None,
+            had_baseline: false,
         });
     };
     let current: BTreeSet<Fingerprint> = findings.iter().map(fingerprint).collect();
@@ -224,6 +229,7 @@ pub fn apply(
         new_findings,
         baselined: matched_entries.len(),
         ratchet,
+        had_baseline: true,
     })
 }
 

@@ -324,3 +324,71 @@ fn project_lockfile_unchanged(w: &mut CliWorld) {
     let actual = std::fs::read(w.project_dir().join("bun.lock")).expect("project lockfile");
     assert_eq!(reference, actual, "the verdict path mutated bun.lock");
 }
+
+/// A project pinning a gate tool whose hermetic install is absent — the
+/// tools dir is pointed at an empty sandbox via `CRAFTSMAN_TOOLS_DIR`, so
+/// this machine's real ~/.craftsman/tools never leaks in (ledger 4).
+#[given("a craftsman project that pins a gate tool that does not exist on this machine")]
+fn project_with_unresolvable_tool_pin(w: &mut CliWorld) {
+    w.write(
+        "craftsman.toml",
+        "[project]\nname = \"fixture\"\nstacks = [\"rust\"]\n\n[gates]\nverify = \"strict\"\nsecurity = \"strict\"\n\n[gates.tools]\ngitleaks = \"9.9.9-fixture\"\n",
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let empty_tools = w.project_dir().join("empty-tools");
+    std::fs::create_dir_all(&empty_tools).expect("mkdirs");
+    w.env.push((
+        "CRAFTSMAN_TOOLS_DIR".to_owned(),
+        empty_tools.display().to_string(),
+    ));
+}
+
+/// Baseline-mode health gate over a tree with one inherited finding and no
+/// recorded baseline — the craftsman-web situation before its explicit
+/// `gate baseline health` (ledger 4b).
+#[given(
+    "a craftsman project with a baseline-mode health gate, no recorded baseline, and an existing finding"
+)]
+fn project_with_unbaselined_health_debt(w: &mut CliWorld) {
+    w.write(
+        "craftsman.toml",
+        "[project]\nname = \"fixture\"\nstacks = [\"rust\"]\n\n[gates]\nhealth = \"baseline\"\n\n[health]\nmax-function-lines = 5\n",
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let dir = w.project_dir();
+    std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
+    w.write(
+        "src/lib.rs",
+        "pub fn inherited() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    let _ = a + b + c + d + e;\n}\n",
+    );
+    for args in [&["init", "--quiet"][..], &["add", "-A"][..]] {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn git");
+        assert!(status.success(), "git {args:?} failed");
+    }
+}
+
+/// A hermetic tools dir carrying the scaffold's pinned release binaries
+/// (doctor's gate-tools check tests presence, exactly what a machine that
+/// ran its gates once while online would have). Versions match
+/// `INIT_CONFIG_TOML`; keep in step when the template pins move.
+#[given("the scaffold's pinned gate tools are installed on this machine")]
+fn pinned_gate_tools_installed(w: &mut CliWorld) {
+    let tools = w.project_dir().join("fixture-tools");
+    for pin in ["gitleaks@8.24.0", "osv-scanner@2.4.0"] {
+        std::fs::create_dir_all(tools.join(pin)).expect("mkdirs");
+    }
+    w.env.push((
+        "CRAFTSMAN_TOOLS_DIR".to_owned(),
+        tools.display().to_string(),
+    ));
+}

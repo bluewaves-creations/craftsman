@@ -61,6 +61,17 @@ pub fn finish(
             // they still report is new.
             let mut blocking = applied.new_findings;
             blocking.extend(native);
+            if !applied.had_baseline && !blocking.is_empty() {
+                // Baseline mode with nothing recorded: the findings block
+                // only because the debt was never snapshotted. Name the
+                // remedy instead of leaving the human to guess (the
+                // craftsman-web dogfood hit exactly this, ledger 4b).
+                notes.push(format!(
+                    "{gate}: mode is baseline but no baseline is recorded — accept \
+                     this inherited debt explicitly with `craftsman gate baseline \
+                     {gate}`, or fix the findings"
+                ));
+            }
             (blocking, applied.baselined, applied.ratchet)
         }
         GateMode::Strict | GateMode::Off => (findings.clone(), 0, None),

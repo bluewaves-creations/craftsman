@@ -14,19 +14,15 @@ the executed spec stays intact.
 
 ## Batch 14 — environment honesty
 
-```gherkin
-Scenario: Doctor reports a pinned gate tool missing from the machine
-  Given a craftsman project that pins a gate tool that does not exist on this machine
-  When I run craftsman with "doctor"
-  Then the exit code is 1
-  And the output names the missing tool
-
-Scenario: A baseline-mode refusal names the baseline command
-  Given a craftsman project with a baseline-mode health gate, no recorded baseline, and an existing finding
-  When I run craftsman with "gate health"
-  Then the exit code is 1
-  And the output contains "craftsman gate baseline health"
-```
+*(merged into SPEC.md at the Batch 14 boundary, 2026-07-18; "the output names
+the missing tool" was concretized to the existing contains-step with the
+fixture's tool name, and the second scenario's command corrected from the
+nonexistent `gate health` surface to `health`. Consequential MODIFIED
+scenario, flagged for human review: "Init scaffolds a project that doctor
+accepts" gained the Given "the scaffold's pinned gate tools are installed on
+this machine" and its count assertion moved 5/5 → 6/6 — doctor grew the
+gate-tools check, and a fresh scaffold's doctor verdict now honestly depends
+on those tools being present.)*
 
 ## Batch 15 — the import gear (blocked on ADR-006)
 

@@ -8,7 +8,9 @@ description: >
   pin). Use for "set up craftsman", "init craftsman", "adopt craftsman in this
   repo", "bring this codebase under craftsman". All gears write files — always
   confirm scope before writing. For drafting scenarios afterwards use
-  craftsman-spec. Requires the craftsman CLI on PATH; if missing, point to the
+  craftsman-spec. Requires the craftsman CLI on PATH; before declaring it
+  missing, probe the usual install dirs (~/.cargo/bin, ~/.local/bin —
+  non-interactive shells often lack them on PATH); only then point to the
   installer and stop.
 license: MIT
 compatibility: Requires the craftsman CLI on PATH and git.

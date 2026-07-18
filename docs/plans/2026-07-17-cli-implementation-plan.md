@@ -290,6 +290,8 @@ Tasks:
 
 Success: craftsman verify exits 0 with both merged scenarios green
 
+*(Boundary close-out 2026-07-18 — success line MET: doctor gains the gate-tools check (per-runner: hermetic dir for GitHub-release tools, uv/bun presence for registry runners, ambient toolchain probe; CRAFTSMAN_TOOLS_DIR keeps the scenario hermetic); baseline-mode refusals with no recorded baseline now name `craftsman gate baseline <gate>`; craftsman-init skill probes ~/.cargo/bin and ~/.local/bin before declaring the CLI missing. Both scenarios wired and merged — verify 43 green / 1 network-gated. Consequential MODIFIED scenario flagged in SPEC.delta.md: the init-doctor scenario now preconditions installed pinned tools and asserts 6/6.)*
+
 *(Release boundary: v0.3.0 is cut when Batches 13+14 land — the update from v0.2.0 also delivers the first real proof of the self-update download leg noted at the Batch 10 close-out.)*
 
 ## Batch 15 — The import gear (blocked on ADR-006 approval)

@@ -201,6 +201,62 @@ pub use install::ensure_download;
 use install::resolve_github;
 pub(crate) use install::sha256;
 
+/// Offline resolution status of `[gates.tools]` pins — doctor's
+/// gate-tools check.
+///
+/// Returns `(resolved, missing)` human descriptions: hermetic release
+/// binaries must already sit under [`tools_dir`], registry runners need
+/// their runner on PATH, toolchain tools probe the ambient program.
+/// Reports only; never installs.
+#[must_use]
+pub fn pin_status(pins: &std::collections::BTreeMap<String, String>) -> (Vec<String>, Vec<String>) {
+    use super::adapter::{Runner, tool};
+    let probe = |program: &str| {
+        std::process::Command::new(program)
+            .arg("--version")
+            .output()
+            .is_ok_and(|o| o.status.success())
+    };
+    let (mut resolved, mut missing) = (Vec::new(), Vec::new());
+    for (name, version) in pins {
+        let pin = format!("{name}@{version}");
+        match tool(name).map(|t| &t.runner) {
+            None => missing.push(format!("{pin} (not a known gate tool)")),
+            Some(Runner::Toolchain { program }) => {
+                if probe(program) {
+                    resolved.push(pin);
+                } else {
+                    missing.push(format!("{pin} (toolchain program `{program}` not found)"));
+                }
+            }
+            Some(Runner::Uvx) => {
+                if probe("uv") {
+                    resolved.push(pin);
+                } else {
+                    missing.push(format!("{pin} (runs via uvx — install uv)"));
+                }
+            }
+            Some(Runner::Bunx { .. }) => {
+                if probe("bun") {
+                    resolved.push(pin);
+                } else {
+                    missing.push(format!("{pin} (runs via bunx — install bun)"));
+                }
+            }
+            Some(Runner::Github { .. }) => match tools_dir() {
+                Ok(dir) if dir.join(&pin).is_dir() => resolved.push(pin),
+                Ok(dir) => missing.push(format!(
+                    "{pin} (no hermetic install under {} — the first run of its \
+                     gate downloads it; run that gate once while online)",
+                    dir.display()
+                )),
+                Err(err) => missing.push(format!("{pin} ({err})")),
+            },
+        }
+    }
+    (resolved, missing)
+}
+
 #[cfg(test)]
 mod tests {
     use super::install::version_tag;

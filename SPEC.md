@@ -192,11 +192,12 @@ Feature: Craftsman CLI core
 
   Scenario: Init scaffolds a project that doctor accepts
     Given an empty git repository directory
+    And the scaffold's pinned gate tools are installed on this machine
     When I run craftsman with "init --name demo --stack rust"
     Then the exit code is 0
     When I run craftsman with "doctor"
     Then the exit code is 0
-    And the output contains "5/5 checks passed"
+    And the output contains "6/6 checks passed"
 
   Scenario: Init refuses to overwrite without force
     Given an empty git repository directory
@@ -259,6 +260,18 @@ Feature: Craftsman CLI core
     Then the exit code is 0
     And the scaffold includes "features/web.feature"
     And the configured spec path ends with ".feature"
+
+  Scenario: Doctor reports a pinned gate tool missing from the machine
+    Given a craftsman project that pins a gate tool that does not exist on this machine
+    When I run craftsman with "doctor"
+    Then the exit code is 1
+    And the output contains "gitleaks"
+
+  Scenario: A baseline-mode refusal names the baseline command
+    Given a craftsman project with a baseline-mode health gate, no recorded baseline, and an existing finding
+    When I run craftsman with "health"
+    Then the exit code is 1
+    And the output contains "craftsman gate baseline health"
 
   Scenario: Adopt enforces phase ordering
     Given an empty git repository directory
