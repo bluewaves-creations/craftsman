@@ -61,6 +61,15 @@ pub(super) fn python_mutate(
     let argv = vec![
         "uv".to_owned(),
         "run".to_owned(),
+        // mutmut 2.5.1 crashes under Python 3.14 (deepcopy recursion;
+        // observed live on CI — run 29645260578) but runs under 3.13.
+        // Pin the newest surviving interpreter for this invocation; uv
+        // provisions it. Must run in the PROJECT env (tests need project
+        // deps), so a project requiring >= 3.14 makes mutmut genuinely
+        // unusable — uv's version-conflict error then surfaces through the
+        // loud no-verdict refusal, which is the correct outcome.
+        "--python".to_owned(),
+        "3.13".to_owned(),
         "--with".to_owned(),
         format!("mutmut=={version}"),
         "mutmut".to_owned(),
