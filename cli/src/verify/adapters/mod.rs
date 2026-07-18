@@ -3,6 +3,7 @@
 //! code-gen arrive in Batch 5.
 
 pub mod cucumber_rs;
+pub mod pytest_bdd;
 
 use std::path::PathBuf;
 

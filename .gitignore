@@ -5,3 +5,9 @@ target/
 .craftsman/cache/
 spikes/*/build/
 .build/
+cli/tests/fixtures/*/.venv/
+cli/tests/fixtures/*/.pytest_cache/
+cli/tests/fixtures/*/.coverage
+cli/tests/fixtures/*/.craftsman/
+cli/tests/fixtures/*/node_modules/
+__pycache__/

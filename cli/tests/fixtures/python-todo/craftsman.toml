@@ -1,0 +1,10 @@
+# Fixture project for the pytest-bdd adapter integration tests
+# (cli/tests/adapters.rs). The spec is the feature file itself.
+[project]
+name = "python-todo"
+stacks = ["python"]
+spec = "features/todo.feature"
+
+[verify.python]
+runner = "pytest-bdd"
+tests-dir = "tests"

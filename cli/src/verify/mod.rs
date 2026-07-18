@@ -25,7 +25,7 @@ use crate::config::{Config, ConfigError, VerifyStack};
 use crate::plan::{self, PlanError};
 use crate::spec::{self, SpecError};
 use adapters::AdapterError;
-use adapters::cucumber_rs;
+use adapters::{cucumber_rs, pytest_bdd};
 use normalize::{ScenarioResult, Status};
 
 /// What to run: everything, one plan batch, or one scenario by exact name.
@@ -240,26 +240,39 @@ fn run_stack(
     let project_dir = section
         .and_then(|s| s.cwd.as_ref())
         .map_or_else(|| root.to_path_buf(), |c| root.join(c));
+    let check_runner = |stack: &'static str, supported: &'static str| {
+        let runner = section
+            .and_then(|s| s.runner.as_deref())
+            .unwrap_or(supported);
+        if runner == supported {
+            Ok(())
+        } else {
+            Err(VerifyError::UnsupportedRunner {
+                stack,
+                runner: runner.to_owned(),
+                supported,
+            })
+        }
+    };
 
     match stack {
         "rust" => {
-            let runner = section
-                .and_then(|s| s.runner.as_deref())
-                .unwrap_or("cucumber-rs");
-            if runner != "cucumber-rs" {
-                return Err(VerifyError::UnsupportedRunner {
-                    stack: "rust",
-                    runner: runner.to_owned(),
-                    supported: "cucumber-rs",
-                });
-            }
+            check_runner("rust", "cucumber-rs")?;
             let runner_target = section
                 .and_then(|s| s.runner_target.as_deref())
                 .unwrap_or("spec");
             Ok(cucumber_rs::run(&project_dir, runner_target, filter)?)
         }
-        // Batch 4 fills these in with the pytest-bdd and cucumber-js
-        // adapters; until then the stack is known but not yet runnable.
+        "python" => {
+            check_runner("python", "pytest-bdd")?;
+            let tests_dir = section
+                .and_then(|s| s.tests_dir.as_deref())
+                .unwrap_or("tests");
+            let artifacts = root.join(".craftsman").join("cache").join("verify");
+            let run = pytest_bdd::run(&project_dir, &artifacts, tests_dir, filter, false)?;
+            Ok(run.results)
+        }
+        // cucumber-js lands next in Batch 4; swift/bash in Batch 5.
         other => Err(VerifyError::StackPending {
             stack: other.to_owned(),
         }),
