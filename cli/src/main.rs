@@ -1038,9 +1038,11 @@ fn gate_baseline_cmd(gate: &str, json: bool) -> anyhow::Result<i32> {
     let config = &loaded.config;
     let strict = craftsman::config::GateMode::Strict;
     let recorded = match gate {
-        "lint" | "health" | "arch" => {
+        // lint owns its recording: snapshot + the SwiftLint native
+        // baseline when a swift stack is configured (Batch 9a).
+        "lint" => gates::baseline::record_lint(root, config)?,
+        "health" | "arch" => {
             let outcome = match gate {
-                "lint" => gates::lint::run(root, config, None, strict)?,
                 "health" => gates::health::run(root, config, None, strict)?,
                 "arch" => gates::arch::run(root, config, None, strict)?,
                 _ => unreachable!("matched above"),

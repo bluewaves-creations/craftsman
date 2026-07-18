@@ -19,8 +19,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use super::{Finding, GateError, fnv_hex};
-use crate::config::Config;
+use super::adapter::{self, BaselineKind};
+use super::{Finding, GateError, exec, fnv_hex, tail, tools};
+use crate::config::{Config, GateMode};
 
 /// Committed baseline directory, root-relative.
 pub const DIR: &str = ".craftsman/baselines";
@@ -222,6 +223,74 @@ pub fn apply(
         baselined: matched_entries.len(),
         ratchet,
     })
+}
+
+/// `gate baseline lint` — record the lint gate's debt (Batch 9a).
+///
+/// The fingerprint snapshot takes snapshot-kind tools only; when a swift
+/// stack is configured, `SwiftLint` additionally writes its native
+/// baseline (`swiftlint lint --write-baseline
+/// .craftsman/baselines/swiftlint.json`, the file baseline-mode runs
+/// later pass back via `--baseline`). Native-tool findings stay out of
+/// the fingerprint snapshot (they are diffed tool-side; recording them
+/// twice would double-count the debt).
+///
+/// # Errors
+/// Tool resolution/spawn/parse failures; baseline write failures.
+pub fn record_lint(root: &Path, config: &Config) -> Result<Baseline, GateError> {
+    let outcome = super::lint::run(root, config, None, GateMode::Strict)?;
+    let snapshot: Vec<Finding> = outcome
+        .findings
+        .into_iter()
+        .filter(|f| adapter::tool(f.tool).is_none_or(|t| t.baseline == BaselineKind::Snapshot))
+        .collect();
+    let mut base = Baseline::record("lint", &snapshot);
+    base.swiftlint = write_swiftlint_baseline(root, config)?;
+    save(root, &base)?;
+    Ok(base)
+}
+
+/// Run `swiftlint lint --write-baseline` for the swift stack, returning
+/// the recorded debt. `None` when no swift stack is configured.
+fn write_swiftlint_baseline(
+    root: &Path,
+    config: &Config,
+) -> Result<Option<NativeBaseline>, GateError> {
+    if !config.project.stacks.iter().any(|s| s == "swift") {
+        return Ok(None);
+    }
+    let tool = adapter::tool("swiftlint").expect("swiftlint is in the adapter table");
+    let resolved = tools::resolve(tool, &super::lint::pinned_version(config, tool))?;
+    let native = path(root, "swiftlint");
+    if let Some(parent) = native.parent() {
+        std::fs::create_dir_all(parent).map_err(|source| GateError::Io {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+    }
+    let cwd = config.verify.stack("swift").and_then(|s| s.cwd.as_deref());
+    let dir = cwd.map_or_else(|| root.to_path_buf(), |c| root.join(c));
+
+    let mut argv = resolved.argv.clone();
+    argv.extend(tool.base_args.iter().map(|s| (*s).to_owned()));
+    argv.push("--write-baseline".to_owned());
+    argv.push(native.to_string_lossy().into_owned());
+    eprintln!("gate lint: swiftlint --write-baseline ({}) …", resolved.via);
+    let output = exec(&argv, &dir, &[])?;
+    let code = output.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let findings = adapter::parse(tool, &stdout, &String::from_utf8_lossy(&output.stderr))?;
+    if !tool.success_codes.contains(&code) && findings.is_empty() {
+        return Err(GateError::ToolFailed {
+            tool: format!("swiftlint ({})", argv.join(" ")),
+            code: code.to_string(),
+            output: tail(&stdout, 30),
+        });
+    }
+    Ok(Some(NativeBaseline {
+        file: DIR.to_owned() + "/swiftlint.json",
+        count: findings.len(),
+    }))
 }
 
 /// One row of `craftsman gate status`.
@@ -478,6 +547,18 @@ mod tests {
         assert!(applied.new_findings.is_empty());
         assert_eq!(applied.baselined, 1, "one entry matched, not two findings");
         assert!(applied.ratchet.is_none());
+    }
+
+    #[test]
+    fn count_includes_native_swiftlint_debt() {
+        // gate status and the strict flip read one number; the SwiftLint
+        // native baseline (Batch 9a) must be part of it.
+        let mut base = Baseline::record("lint", &[f("clippy", "r", "src/a.rs", "m")]);
+        base.swiftlint = Some(NativeBaseline {
+            file: format!("{DIR}/swiftlint.json"),
+            count: 3,
+        });
+        assert_eq!(base.count(), 4);
     }
 
     #[test]

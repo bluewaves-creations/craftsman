@@ -245,7 +245,7 @@ fn run_tool(
 
 /// The pinned version for a tool: `[gates.tools]` overrides the adapter
 /// default (ruff-format shares ruff's pin).
-fn pinned_version(config: &Config, tool: &GateTool) -> String {
+pub(crate) fn pinned_version(config: &Config, tool: &GateTool) -> String {
     let key = if tool.name == "ruff-format" {
         "ruff"
     } else {
