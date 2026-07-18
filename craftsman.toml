@@ -3,7 +3,7 @@ name = "craftsman"
 stacks = ["rust"]
 spec = "SPEC.md"
 plan = "docs/plans/2026-07-17-cli-implementation-plan.md"
-cli-version = "0.1.0"
+cli-version = "0.2.0"
 
 [verify.rust]
 runner = "cucumber-rs"
@@ -16,8 +16,11 @@ lint = "strict"
 arch = "strict"
 security = "strict"
 health = "strict"
-# spikes are frozen evidence, not shipped code
-exclude = ["spikes/**"]
+# spikes are frozen evidence, not shipped code; release.yml is generated
+# verbatim by cargo-dist (its own `dist generate --check` job fails on any
+# hand edit, so semgrep's curl|sh / interpolation findings there are not
+# actionable here — upstream owns that file's shape)
+exclude = ["spikes/**", ".github/workflows/release.yml"]
 # mutate stays off as a commit gate: a tiny-diff run measured 30s wall
 # (fresh tree copy + baseline + 8 mutants) — run `craftsman mutate` on
 # demand at batch boundaries instead.

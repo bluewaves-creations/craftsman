@@ -50,35 +50,33 @@ jobs:
           key: craftsman-tools-${{ runner.os }}-${{ hashFiles('craftsman.toml') }}
       - run: cargo run -q -- check-all
 
-  # swift-linux — desk-verified 2026-07-18 (Batch 9c), enable on first
-  # remote CI run (the live probe is remote-gated; an unproven job must
-  # not ship enabled). Verified from official sources:
+  # swift-linux — desk-verified 2026-07-18 (Batch 9c), enabled as a live
+  # canary in Batch 10. Verified from official sources:
   # - swift.org's releases feed publishes Ubuntu 24.04 toolchains for
   #   6.2 through 6.3.3 (swift.org/api/v1/install/releases.json).
   # - swift-actions/setup-swift v2.4.0 (2025-11-19) lists ubuntu "24.04"
   #   in src/os.ts and 6.2/6.2.1 in src/swift-versions.ts ("6.2" resolves
   #   to 6.2.1; quote the version — YAML floats truncate). Caveat: issue
   #   #677 (GPG import failure on ubuntu-24.04) was never formally closed
-  #   though v2.4.0's notes claim GPG fixes — hence one canary run first.
+  #   though v2.4.0's notes claim GPG fixes — this job is the canary.
   # - Alternative if the canary hits #677: vapor/swiftly-action@v0.2.1
   #   with toolchain: "6.2" (swiftly installs straight from swift.org,
   #   which definitively ships 6.2+ for 24.04).
   # The swift round trip in tests/codegen.rs needs Swift >= 6.2 (SE-0451
   # raw identifiers) and self-skips loudly below it; macos-15 already
   # exercises the swift path whenever its Xcode ships Swift 6.2+.
-  #
-  # swift-linux:
-  #   runs-on: ubuntu-24.04
-  #   defaults:
-  #     run:
-  #       working-directory: cli
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: swift-actions/setup-swift@v2.4.0
-  #       with:
-  #         swift-version: "6.2"
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - uses: Swatinem/rust-cache@v2
-  #       with:
-  #         workspaces: cli
-  #     - run: cargo test --test codegen swift
+  swift-linux:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2.4.0
+        with:
+          swift-version: "6.2"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo test --test codegen swift

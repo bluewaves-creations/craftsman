@@ -7,14 +7,12 @@ members = ["cargo:."]
 cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
-# The installers to generate for each app
-installers = []
+# The installers to generate for each app. The shell installer is the
+# receipt-writing path: `craftsman update` self-updates only for installs
+# it can prove (the cargo-dist install receipt). Homebrew stays parked
+# until the team decides on a tap repository.
+installers = ["shell"]
 # Target platforms to build apps for (Rust target-triple syntax).
 # Team-only distribution (design decision #3): the three machines the team
 # runs — mac arm64 + x86_64, linux x86_64. Widen when a machine appears.
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
-
-# `dist generate` (the release.yml GitHub workflow) requires a
-# `repository = "https://github.com/..."` key in cli/Cargo.toml; this repo
-# has no remote yet, so the workflow is generated when one exists —
-# run `dist generate` once, then releases are `git tag vX.Y.Z && git push --tags`.

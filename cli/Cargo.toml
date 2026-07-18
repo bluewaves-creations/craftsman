@@ -1,9 +1,10 @@
 [package]
 name = "craftsman"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "The Craftsman Dev CLI — mechanical verification for agentic development"
 license = "MIT"
+repository = "https://github.com/bluewaves-creations/craftsman"
 
 [dependencies]
 anyhow = "1.0.103"
