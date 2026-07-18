@@ -109,9 +109,11 @@ The two ADR-005 deferrals that require a genuine application:
 production-grade research; measures the system's claimed edge, not vibes.
 Results land in docs/research/ and drive the v0.3 roadmap.
 
-## Phase D6 — Import re-entry (after Batches 15+16 / v0.4.0)
+## Phase D6 — Import dogfood (deferred by the human 2026-07-18)
 
-Re-enter craftsman-web through the real gears it should have had:
+craftsman-web is now a live production site — it stays as-is. The import
+gear gets its dogfood on the next incoming project instead (any copied
+sibling or vendored tree). The exercise, whenever that project appears:
 
 - `craftsman import` on a fresh copy of the tree: detect → scaffold → audit →
   QA conversion; compare the flaw inventory against the hand-recorded baseline
@@ -119,9 +121,8 @@ Re-enter craftsman-web through the real gears it should have had:
 - Convert `bun run qa` (build · i18n-parity · assets · links · a11y · seo ·
   agent-skills) into declared `[gates.qa]` gates; `check-all` and the commit
   hooks then carry the site's real acceptance.
-- Success: craftsman-web's `Verified-by:` trailer names its qa gates; the
-  dogfood ledger gains a second entry recording the delta between the two
-  onboarding experiences.
+- Success: the imported project's `Verified-by:` trailer names its qa gates;
+  its dogfood ledger records the delta against the craftsman-web experience.
 
 ## Standing rules for the program
 

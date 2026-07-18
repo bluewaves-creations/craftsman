@@ -6,5 +6,5 @@
 - [ADR-002: Normalized result schema v1 (Spike S2 verdict)](ADR-002-result-schema.md) — accepted
 - [ADR-003: cucumber-rs verify adapter ingests `output-json`, not JUnit](ADR-003-cucumber-rs-output-json.md) — accepted
 - [ADR-004: Batch 6b gate decisions — config placement, arch scope, mutation tooling](ADR-004-batch-6b-gate-decisions.md) — accepted
-- [ADR-005: Batch 9c deferral register — everything still open after debt zero](ADR-005-deferral-register.md) — Proposed
+- [ADR-005: Batch 9c deferral register — everything still open after debt zero](ADR-005-deferral-register.md) — Accepted (human
 - [ADR-006: Entry doctrine — init, adopt, import; existing QA converts into gates](ADR-006-entry-doctrine-import-and-qa-gates.md) — Accepted (human

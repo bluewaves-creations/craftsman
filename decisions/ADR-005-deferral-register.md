@@ -1,6 +1,6 @@
 # ADR-005: Batch 9c deferral register — everything still open after debt zero
 
-Status: Proposed · Date: 2026-07-18 · Evidence: the Batch 9 plan's
+Status: Accepted (human, 2026-07-18) · Date: 2026-07-18 · Evidence: the Batch 9 plan's
 honest-undone register, the Batch 9c close-out, and the observed limits
 recorded in the ledger.
 
