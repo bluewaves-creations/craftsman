@@ -260,3 +260,73 @@ Tasks:
 - craftsman-spec delta for the subset worth promising in SPEC.md — human approves; merge at boundary
 
 Success: craftsman verify exits 0; cargo test green with all nine pins; any approved gap scenarios merged green
+
+## Batch 13 — Verdict-path fixes (craftsman-web dogfood, fix discipline)
+
+*(scaffolded 2026-07-18 from the craftsman-web ledger — `../craftsman-web/docs/dogfood/ledger.md`, findings 1, 2, 5, 6. All four are defects: craftsman-fix discipline binds — diagnosis is in the ledger + this session's source trace; every fix commit carries its failing-first root-cause test; fixes never share a commit with each other or with refactors. Scenarios live in SPEC.delta.md until the boundary merge (human-approved).)*
+
+Scenarios:
+- Verify refuses a typescript project whose runner is not installed
+- Commit creates the first commit of a fresh repository
+- Init scaffolds a feature spec for the typescript stack
+
+Tasks:
+- Fix W2 (ledger 2, severe — network in the verdict path): cucumber_js.rs invokes `bunx`, which auto-installs missing packages and mutated a project's bun.lock (pulling a dependency-confusion stub). Preflight `node_modules/.bin/cucumber-js`; absent → exit 3 naming the dep and the `bun install` remedy; invoke the local binary, never `bunx` auto-fetch. Failing-first test: ts fixture without node_modules → deterministic exit 3, lockfile byte-identical.
+- Fix W6 (ledger 6): `gates::changed_files` runs `git diff --name-only HEAD` and errors on an unborn HEAD, so `craftsman commit` can never make a repo's first commit. Diff against the empty tree when HEAD does not resolve (everything is new) — mirroring the fallback impact/mod.rs already documents.
+- Fix W1a (ledger 1): init scaffolds `spec = "SPEC.md"` for every stack, but the cucumber-js runner discovers `features/**/*.feature` and never sees it → exit 4 on first verify. Per-stack scaffold: typescript gets `features/<name>.feature` and a matching spec path.
+- Fix W5 (ledger 5): install.sh cargo branch is not idempotent (`cargo install` without `--force` stops when the binary exists). Add `--force`; prove by re-running install.sh on this machine.
+
+Success: craftsman verify exits 0 with the three merged scenarios green; cargo test green; re-run of install.sh exits 0
+
+## Batch 14 — Environment honesty (doctor + baseline UX)
+
+*(scaffolded 2026-07-18 from ledger findings 4 and 4b: a fresh machine silently cannot run gates whose pinned tools are absent — doctor checks only git and cargo (doctor.rs:220) — and a baseline-mode gate blocks on inherited findings without naming the `gate baseline` move that resolves it.)*
+
+Scenarios:
+- Doctor reports a pinned gate tool missing from the machine
+- A baseline-mode refusal names the baseline command
+
+Tasks:
+- Doctor reads the current project's `[gates.tools]` pins and reports each missing tool as a failing check (installing them stays out of scope: setup remains network-free by design; doctor tells the human what to install)
+- Baseline-mode gate refusal message gains the exact `craftsman gate baseline <gate>` remedy line
+- craftsman-init skill: note the PATH probe (`~/.cargo/bin`, `~/.local/bin`) before declaring the CLI missing (ledger 5, skill-side half)
+
+Success: craftsman verify exits 0 with both merged scenarios green
+
+*(Release boundary: v0.3.0 is cut when Batches 13+14 land — the update from v0.2.0 also delivers the first real proof of the self-update download leg noted at the Batch 10 close-out.)*
+
+## Batch 15 — The import gear (blocked on ADR-006 approval)
+
+*(scaffolded 2026-07-18 per the human's doctrine: importing a tree from elsewhere is distinct from adopting your own; imported code gets a solid new system that surfaces its flaws — full-gate audit, explicit debt disposal, never a silent baseline. Design: ADR-006. Task detail stays coarse until the ADR and the delta scenarios are approved; detail at the Batch 14 boundary.)*
+
+Scenarios:
+- Init refuses a non-empty tree and names the import path
+- Import scaffolds the contract without destroying existing files
+- Import audits the enabled gates and reports the flaw inventory
+- Import detects existing QA commands as conversion candidates
+
+Tasks (coarse until ADR-006 approval):
+- `init` non-empty-tree detection + refusal routing (adopt | import | --force)
+- `craftsman import`: detect → scaffold (init's merge behavior) → audit (all runnable gates, observe mode, JSON + human flaw inventory) → QA-command detection report
+- Debt disposal flow: human accepts findings into recorded baselines (reasoned) or routes them to remediation batches; default is remediation
+- craftsman-init skill: import gear + routing signals ("copied from", "fork", "bring this repo under craftsman"); destructive-gear confirmation unchanged
+
+Success: craftsman verify exits 0 with the four merged scenarios green
+
+## Batch 16 — QA command gates (blocked on ADR-006 approval)
+
+*(the conversion target for imported projects that already carry QA: `[gates.qa.<name>]` command gates under check-all orchestration — exit-code contract, loud refusal when missing, strict|off in v1 (a command verdict has no findings to fingerprint, so baseline does not apply). verify stays always-strict BDD per ADR-006 §4.)*
+
+Scenarios:
+- A declared qa gate runs inside check-all
+- A red qa gate blocks commit
+- A qa gate whose command is missing refuses loudly
+
+Tasks (coarse until ADR-006 approval):
+- `[gates.qa.<name>]` config parsing (command, optional cwd), check-all ordering, cache participation, trailer rendering
+- Commit gate integration + the exit-3 missing-command path
+- craftsman-web re-entry: convert `bun run qa` into declared qa gates (dogfood Phase D6 proves the conversion)
+
+Success: craftsman verify exits 0 with the three merged scenarios green; craftsman-web check-all runs its converted qa gates
+
+*(Release boundary: v0.4.0 when Batches 15+16 land.)*

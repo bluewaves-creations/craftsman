@@ -25,6 +25,35 @@ ledger (`git log --grep="Learned:"`).
    exception to no-backfill) held the verified-only bar: 52/61 drafted scenarios
    survived citation; 9 became gaps instead of guesses (→ Batch 12).
 
+The first *external* dogfood — craftsman-web, a copied-and-rebranded sibling
+brought under the installed v0.2.0 — produced its own ledger
+(`../craftsman-web/docs/dogfood/ledger.md`). Harvested 2026-07-18; every
+finding is routed, none rides on memory:
+
+6. **`bunx` puts the network in the verdict path** (ledger 2, severe) — the
+   cucumber-js adapter's `bunx` auto-installed the runner, mutated the project's
+   bun.lock, and pulled a dependency-confusion stub. → Batch 13 fix; AGENTS.md
+   gains the no-install-in-verdict-path hard constraint.
+7. **init's ts spec default is dead on arrival** (ledger 1) — `spec = "SPEC.md"`
+   is invisible to cucumber-js's `features/**/*.feature` discovery → exit 4 on
+   first verify. → Batch 13 fix (per-stack `.feature` scaffold).
+8. **`craftsman commit` cannot make a repo's first commit** (ledger 6) — unborn
+   HEAD breaks `--changed`. → Batch 13 fix (empty-tree diff fallback).
+9. **install.sh is not idempotent + PATH probing** (ledger 5) — `cargo install`
+   without `--force`; non-interactive shells miss `~/.cargo/bin`. → Batch 13 fix
+   (script) + Batch 14 (skill-side probe note).
+10. **The greenfield/brownfield fork rested on phrasing** (ledger 3 + 4b) — a
+    copied tree got greenfield-strict gates; inherited findings blocked until a
+    manual `gate baseline`. → ADR-006 entry doctrine: `init` refuses non-empty
+    trees; new `import` gear (audit-first, explicit debt disposal) → Batch 15.
+11. **Existing QA lived outside the system** (ledger 1b) — the site's real
+    acceptance (`bun run qa`) had no place in the contract; verify was satisfied
+    by a token walking skeleton. → ADR-006 §5: `[gates.qa]` command gates
+    (verify stays always-strict BDD; the external-verify-adapter idea is
+    rejected) → Batch 16.
+12. **Doctor is blind to pinned gate tools** (ledger 4) — only git/cargo are
+    checked; two gates silently unrunnable on a fresh machine. → Batch 14.
+
 ## Harvested CLI niceties (route through craftsman-spec before any code)
 
 - `spec lint --delta` — lint SPEC.delta.md scenarios against the main spec (name
@@ -79,6 +108,20 @@ The two ADR-005 deferrals that require a genuine application:
 8 tasks × 3 conditions (bare agent / conventions only / full craftsman) per the
 production-grade research; measures the system's claimed edge, not vibes.
 Results land in docs/research/ and drive the v0.3 roadmap.
+
+## Phase D6 — Import re-entry (after Batches 15+16 / v0.4.0)
+
+Re-enter craftsman-web through the real gears it should have had:
+
+- `craftsman import` on a fresh copy of the tree: detect → scaffold → audit →
+  QA conversion; compare the flaw inventory against the hand-recorded baseline
+  from the first pass.
+- Convert `bun run qa` (build · i18n-parity · assets · links · a11y · seo ·
+  agent-skills) into declared `[gates.qa]` gates; `check-all` and the commit
+  hooks then carry the site's real acceptance.
+- Success: craftsman-web's `Verified-by:` trailer names its qa gates; the
+  dogfood ledger gains a second entry recording the delta between the two
+  onboarding experiences.
 
 ## Standing rules for the program
 

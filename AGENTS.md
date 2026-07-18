@@ -16,6 +16,7 @@ This repo builds the Craftsman Dev system: the `craftsman` CLI (`cli/`, Rust), t
 
 - Exit-code contract: 0 pass · 1 verification failure · 2 usage · 3 orchestrator error · 4 empty selection. Every command: `--json` to stdout, human progress to stderr.
 - No LLM calls anywhere in the CLI; no network in the verdict path; no telemetry.
+- No dependency installation or lockfile mutation in the verdict path: adapters and gate runners require their tools already installed (declared deps for project runners) and refuse with exit 3 otherwise — never `bunx`/`npx`/`uvx` auto-fetch.
 - Single-writer: only the CLI writes `.craftsman/` state, baselines, trailers.
 - Errors: `thiserror` enums in library modules; `anyhow` + `.with_context()` only in the command layer. No `unwrap` outside tests without a stated invariant comment.
 - clippy pedantic+nursery are warnings locally, `-D warnings` in CI — fix, don't allow, unless the allow carries a reason.
