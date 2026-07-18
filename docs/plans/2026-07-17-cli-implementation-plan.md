@@ -358,6 +358,7 @@ Scenarios:
 - Spec lint checks a delta file without admitting it
 - Spec lint delta rejects a name colliding with the executed spec
 - Spec lint delta without a delta file is an empty selection
+- Plan lint accepts a scenario that lives in the approved delta
 - Merge-delta folds approved scenarios into the spec and removes the delta
 - Merge-delta refuses a delta that fails lint
 - Merge-delta without a delta file is an empty selection
@@ -366,9 +367,10 @@ Tasks:
 - Harness consolidation first (refactor-only commits, no behavior change): extract the shared fixture pattern (stable temp dir, scrub-on-entry, repo-config git identity) into a common test module the step files call; record the harness traps in `cli/tests/spec/README.md` (cucumber-expression slash alternation, `--name` regex filter bypass, fixture idempotence, bare-runner identity)
 - `spec lint --delta`: gherkin-parse SPEC.delta.md and check its scenario names against the executed spec — 0 clean · 1 findings · 4 no delta file; never adds to the executed set
 - `spec merge-delta`: refuse on delta-lint findings; otherwise append the delta scenarios to SPEC.md under a dated banner, remove SPEC.delta.md, and never commit — the head stays where it was (single-writer now covers the merge)
-- Wire the six scenarios red-first
+- `plan lint` delta awareness (approved 2026-07-19, from the routing session's own red): a plan-listed scenario found in SPEC.delta.md lints clean with a pending-merge note; genuinely unknown names stay errors — the delta pattern and a clean plan lint stop being mutually exclusive
+- Wire the seven scenarios red-first
 
-Success: craftsman verify exits 0 with all six Batch 18 scenarios green
+Success: craftsman verify exits 0 with all seven Batch 18 scenarios green
 
 ## Batch 19 — Boundary observability (agent-feedback harvest, approved 2026-07-19)
 

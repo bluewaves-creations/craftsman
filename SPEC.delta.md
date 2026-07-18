@@ -35,6 +35,14 @@ Feature: Craftsman CLI core — delta
     Then the exit code is 4
     And the output contains "SPEC.delta.md"
 
+  Scenario: Plan lint accepts a scenario that lives in the approved delta
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And a delta file adds the scenario "Third behavior"
+    And the plan assigns "Third behavior" to a batch
+    When I run craftsman with "plan lint"
+    Then the exit code is 0
+    And the output contains "delta"
+
   Scenario: Merge-delta folds approved scenarios into the spec and removes the delta
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     And a delta file adds the scenario "Third behavior"
