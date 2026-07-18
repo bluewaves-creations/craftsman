@@ -87,7 +87,8 @@ pub struct GateOutcome {
     /// The findings that fail the gate: all enforceable findings in strict
     /// mode, only un-baselined ones in baseline mode.
     pub blocking: Vec<Finding>,
-    /// How many findings the baseline swallowed.
+    /// How many baseline entries (distinct fingerprints) the current
+    /// findings matched — the same unit `gate status` reports.
     pub baselined: usize,
     /// Auto-ratchet note, when the snapshot shrank.
     pub ratchet: Option<String>,

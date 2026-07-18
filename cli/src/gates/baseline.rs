@@ -158,7 +158,10 @@ pub fn save(root: &Path, baseline: &Baseline) -> Result<(), GateError> {
 pub struct Applied {
     /// Findings not in the baseline — the blocking set.
     pub new_findings: Vec<Finding>,
-    /// How many current findings the baseline swallowed.
+    /// How many baseline entries (distinct fingerprints) the current
+    /// findings matched. Counted in fingerprints, not findings: the
+    /// snapshot cannot tell two identical findings apart, so this is the
+    /// same unit `gate status` reports — one truth, both places.
     pub baselined: usize,
     /// Human note when the snapshot auto-ratcheted smaller.
     pub ratchet: Option<String>,
@@ -213,9 +216,10 @@ pub fn apply(
         }
     }
 
+    let matched_entries: BTreeSet<Fingerprint> = matched.iter().map(fingerprint).collect();
     Ok(Applied {
         new_findings,
-        baselined: matched.len(),
+        baselined: matched_entries.len(),
         ratchet,
     })
 }
@@ -448,6 +452,32 @@ mod tests {
         let base = load(tmp.path(), "lint").expect("load").expect("exists");
         assert_eq!(base.count(), 1);
         assert_eq!(base.fingerprints.iter().next().expect("one").tool, "ruff");
+    }
+
+    #[test]
+    fn baselined_counts_distinct_fingerprints_not_findings() {
+        // Two identical findings (same tool/rule/file/message — e.g. two
+        // duplicated blocks in one file) collide into one fingerprint; the
+        // snapshot holds one entry, so "baselined" must report 1, matching
+        // what `gate status` reads from the file. This was the observed
+        // 41-vs-42 drift between check-all and gate status.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let twin = || f("health", "duplication", "src/a.rs", "duplicated block");
+        save(tmp.path(), &Baseline::record("health", &[twin(), twin()])).expect("save");
+        let base = load(tmp.path(), "health").expect("load").expect("exists");
+        assert_eq!(base.count(), 1, "the snapshot dedupes to one entry");
+
+        let applied = apply(
+            tmp.path(),
+            "health",
+            vec![twin(), twin()],
+            &["health"],
+            true,
+        )
+        .expect("apply");
+        assert!(applied.new_findings.is_empty());
+        assert_eq!(applied.baselined, 1, "one entry matched, not two findings");
+        assert!(applied.ratchet.is_none());
     }
 
     #[test]
