@@ -38,7 +38,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use super::{Finding, GateError, GateOutcome, Severity, lint};
+use super::{Finding, GateError, GateOutcome, Severity, epilogue};
 use crate::config::{Config, GateMode};
 
 /// The gate/tool name for findings and baselines.
@@ -139,7 +139,18 @@ pub fn run(
         }
     }
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
-    lint::finish(root, "arch", findings, notes, vec![TOOL], changed, mode)
+    epilogue::finish(
+        &epilogue::Epilogue {
+            root,
+            config,
+            gate: "arch",
+            changed,
+            mode,
+        },
+        findings,
+        notes,
+        vec![TOOL],
+    )
 }
 
 /// Parse `[arch] deny` into rules, refusing empty or malformed input.

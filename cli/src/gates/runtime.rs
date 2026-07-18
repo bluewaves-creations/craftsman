@@ -29,7 +29,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::adapter;
-use super::{Finding, GateError, GateOutcome, Severity, exec, lint, tail, tools};
+use super::{Finding, GateError, GateOutcome, Severity, epilogue, exec, tail, tools};
 use crate::config::{Config, GateMode};
 
 /// Pinned Lighthouse CI version (`[gates.tools] lhci` overrides).
@@ -82,7 +82,18 @@ pub fn run(
         }
         other => unreachable!("not a runtime gate: {other}"),
     };
-    lint::finish(root, gate, findings, notes, vec![tool], changed, mode)
+    epilogue::finish(
+        &epilogue::Epilogue {
+            root,
+            config,
+            gate,
+            changed,
+            mode,
+        },
+        findings,
+        notes,
+        vec![tool],
+    )
 }
 
 fn not_configured(gate: &'static str, key: &str) -> GateError {

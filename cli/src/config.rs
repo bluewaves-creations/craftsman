@@ -321,6 +321,12 @@ pub struct Gates {
     /// (`info|low|medium|high|critical`). Default: `high` — HIGH and
     /// CRITICAL findings fail the gate.
     pub security_threshold: Option<crate::gates::Severity>,
+    /// Glob patterns (root-relative; `*` within a segment, `**` across
+    /// segments) excluded from every gate's scope — findings under them
+    /// are dropped and file censuses skip them (Batch 9c). For committed
+    /// evidence that is not shipped code (e.g. `spikes/**`).
+    #[serde(default)]
+    pub exclude: Vec<String>,
     /// Version pins; adapters install hermetically (Batch 6a).
     #[serde(default)]
     pub tools: BTreeMap<String, String>,

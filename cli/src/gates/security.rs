@@ -15,7 +15,7 @@
 use std::path::Path;
 
 use super::adapter::{self, GateTool};
-use super::{Finding, GateError, GateOutcome, Severity, baseline, exec, lint, tail, tools};
+use super::{Finding, GateError, GateOutcome, Severity, baseline, epilogue, exec, tail, tools};
 use crate::config::{Config, GateMode};
 
 /// Lockfile names osv-scanner is pointed at (tracked files only).
@@ -80,6 +80,8 @@ pub fn run(
                 .file_name()
                 .is_some_and(|n| LOCKFILES.contains(&n.to_string_lossy().as_ref()))
         })
+        // Central scope exclusion: excluded lockfiles are never scanned.
+        .filter(|f| !super::scope::is_excluded(&config.gates.exclude, f))
         .map(str::to_owned)
         .collect();
 
@@ -117,15 +119,21 @@ pub fn run(
     }
     let mut all = enforceable.clone();
     all.extend(informational);
+    // The epilogue drops excluded findings from the enforceable set; the
+    // full (visibility) set must not resurrect them.
+    all.retain(|f| !super::scope::is_excluded(&config.gates.exclude, &f.file));
 
-    let mut outcome = lint::finish(
-        root,
-        "security",
+    let mut outcome = epilogue::finish(
+        &epilogue::Epilogue {
+            root,
+            config,
+            gate: "security",
+            changed,
+            mode,
+        },
         enforceable,
         notes,
         tools_ran,
-        changed,
-        mode,
     )?;
     outcome.findings = all;
     Ok(outcome)

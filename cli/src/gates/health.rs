@@ -44,7 +44,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use super::{Finding, GateError, GateOutcome, Severity, fnv_hex, lint};
+use super::{Finding, GateError, GateOutcome, Severity, epilogue, fnv_hex};
 use crate::config::{Config, GateMode};
 
 /// The gate/tool name for findings and baselines.
@@ -62,7 +62,10 @@ pub fn run(
     mode: GateMode,
 ) -> Result<GateOutcome, GateError> {
     let mut notes: Vec<String> = Vec::new();
-    let files = source_files(root)?;
+    let mut files = source_files(root)?;
+    // Central scope exclusion applied to the census itself: excluded trees
+    // must not even feed the cross-file duplication index.
+    files.retain(|(path, _)| !super::scope::is_excluded(&config.gates.exclude, path));
     eprintln!(
         "gate health: scanning {} tracked source file(s) …",
         files.len()
@@ -91,7 +94,18 @@ pub fn run(
     }
     findings.sort_by(|a, b| (&a.file, a.line, &a.rule).cmp(&(&b.file, b.line, &b.rule)));
 
-    lint::finish(root, "health", findings, notes, vec![TOOL], changed, mode)
+    epilogue::finish(
+        &epilogue::Epilogue {
+            root,
+            config,
+            gate: "health",
+            changed,
+            mode,
+        },
+        findings,
+        notes,
+        vec![TOOL],
+    )
 }
 
 /// Languages the heuristics understand.

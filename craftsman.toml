@@ -16,6 +16,8 @@ lint = "strict"
 arch = "strict"
 security = "baseline"
 health = "baseline"
+# spikes are frozen evidence, not shipped code
+exclude = ["spikes/**"]
 # mutate stays off as a commit gate: a tiny-diff run measured 30s wall
 # (fresh tree copy + baseline + 8 mutants) — run `craftsman mutate` on
 # demand at batch boundaries instead.

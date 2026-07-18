@@ -17,10 +17,12 @@ pub mod adapter;
 pub mod arch;
 pub mod baseline;
 pub mod check_all;
+mod epilogue;
 pub mod health;
 pub mod lint;
 pub mod mutate;
 pub mod runtime;
+pub mod scope;
 pub mod security;
 pub mod tools;
 

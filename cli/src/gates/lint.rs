@@ -14,7 +14,8 @@
 
 use std::path::Path;
 
-use super::adapter::{self, BaselineKind, GateTool};
+use super::adapter::{self, GateTool};
+use super::epilogue::{Epilogue, finish};
 use super::{Finding, GateError, GateOutcome, baseline, exec, tail, tools};
 use crate::config::{Config, GateMode};
 
@@ -78,65 +79,18 @@ pub fn run(
         }
     }
 
-    finish(root, "lint", findings, notes, tools_ran, changed, mode)
-}
-
-/// Shared gate epilogue: apply the mode (baseline vs strict) and assemble
-/// the outcome. Security reuses this.
-pub(crate) fn finish(
-    root: &Path,
-    gate: &'static str,
-    findings: Vec<Finding>,
-    mut notes: Vec<String>,
-    tools_ran: Vec<&'static str>,
-    changed: Option<&[String]>,
-    mode: GateMode,
-) -> Result<GateOutcome, GateError> {
-    let (blocking, baselined, ratchet) = match mode {
-        GateMode::Baseline => {
-            // Internal gate tools (health, arch, mutate) are not in the
-            // adapter table — they have no native baseline mechanism, so
-            // unknown names default to the unified snapshot.
-            let snapshot_tools: Vec<&'static str> = tools_ran
-                .iter()
-                .copied()
-                .filter(|name| {
-                    adapter::tool(name).is_none_or(|t| t.baseline == BaselineKind::Snapshot)
-                })
-                .collect();
-            let (snapshot, native): (Vec<Finding>, Vec<Finding>) = findings
-                .clone()
-                .into_iter()
-                .partition(|f| snapshot_tools.contains(&f.tool));
-            let applied =
-                baseline::apply(root, gate, snapshot, &snapshot_tools, changed.is_none())?;
-            // Native-baseline tools already diffed tool-side: everything
-            // they still report is new.
-            let mut blocking = applied.new_findings;
-            blocking.extend(native);
-            (blocking, applied.baselined, applied.ratchet)
-        }
-        GateMode::Strict | GateMode::Off => (findings.clone(), 0, None),
-    };
-    if mode == GateMode::Off {
-        notes.push(format!(
-            "gate {gate} is off in craftsman.toml — this direct run enforced strict"
-        ));
-    }
-    Ok(GateOutcome {
-        gate,
-        mode: if mode == GateMode::Off {
-            GateMode::Strict
-        } else {
-            mode
+    finish(
+        &Epilogue {
+            root,
+            config,
+            gate: "lint",
+            changed,
+            mode,
         },
         findings,
-        blocking,
-        baselined,
-        ratchet,
         notes,
         tools_ran,
-    })
+    )
 }
 
 /// What one tool invocation produced.
@@ -165,6 +119,8 @@ fn run_tool(
         "shellcheck" => {
             let mut files: Vec<String> = super::git(root, &["ls-files", "*.sh", "*.bash"])?
                 .lines()
+                // Central scope exclusion: excluded trees are never linted.
+                .filter(|f| !super::scope::is_excluded(&config.gates.exclude, f))
                 .map(str::to_owned)
                 .collect();
             if let Some(changed) = stack_changed {
