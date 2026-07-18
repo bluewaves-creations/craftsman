@@ -205,15 +205,27 @@ pub fn fnv_hex(text: &str) -> String {
     format!("{:016x}", fnv64(text.as_bytes()))
 }
 
+/// git's well-known empty-tree object id — the diff base when `HEAD` is
+/// unborn (fresh repository, no commits): everything is new.
+const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
 /// Files changed against `HEAD` (worktree + index) plus untracked files —
 /// the `--changed` target set, root-relative.
 ///
+/// On an unborn `HEAD` the base is the empty tree, so a repository's
+/// first commit can pass the gates.
+///
 /// # Errors
-/// [`GateError::Git`] when git cannot answer (not a repo, no `HEAD`).
+/// [`GateError::Git`] when git cannot answer (not a repo).
 pub fn changed_files(root: &Path) -> Result<Vec<String>, GateError> {
+    let base = if git(root, &["rev-parse", "--verify", "-q", "HEAD"]).is_ok() {
+        "HEAD"
+    } else {
+        EMPTY_TREE
+    };
     let mut files: Vec<String> = Vec::new();
     for args in [
-        &["diff", "--name-only", "HEAD"][..],
+        &["diff", "--name-only", base][..],
         &["ls-files", "--others", "--exclude-standard"][..],
     ] {
         let out = git(root, args)?;
@@ -333,5 +345,34 @@ mod tests {
     fn severity_parses_lowercase() {
         let s: Severity = serde_json::from_str("\"high\"").expect("parse");
         assert_eq!(s, Severity::High);
+    }
+
+    /// Root-cause test for the craftsman-web ledger finding 6: on an unborn
+    /// HEAD (fresh repo, no commits) `--changed` must treat everything as
+    /// new instead of erroring — otherwise `craftsman commit` can never
+    /// make a repository's first commit.
+    #[test]
+    fn changed_files_on_unborn_head_sees_everything_as_new() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let run = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .output()
+                    .expect("git runs")
+                    .status
+                    .success(),
+                "git {args:?}"
+            );
+        };
+        run(&["init", "-q"]);
+        std::fs::write(root.join("staged.txt"), "a").expect("write");
+        std::fs::write(root.join("untracked.txt"), "b").expect("write");
+        run(&["add", "staged.txt"]);
+
+        let files = changed_files(root).expect("unborn HEAD is 'everything is new', not an error");
+        assert_eq!(files, vec!["staged.txt", "untracked.txt"]);
     }
 }
