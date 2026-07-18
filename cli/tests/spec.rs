@@ -100,6 +100,60 @@ fn project_with_stacks(w: &mut CliWorld, first: String, second: String) {
     );
 }
 
+#[given(expr = "a bash-stack craftsman project whose spec has scenarios {string} and {string}")]
+fn bash_project_with_two_scenarios(w: &mut CliWorld, first: String, second: String) {
+    w.write(
+        "craftsman.toml",
+        "[project]\nname = \"fixture\"\nstacks = [\"bash\"]\n",
+    );
+    w.write(
+        "SPEC.md",
+        &format!("Feature: Fixture feature\n\n  Scenario: {first}\n\n  Scenario: {second}\n"),
+    );
+}
+
+/// The sentinel line planted into the generated step template to prove gen
+/// never overwrites a step file once it exists.
+const HAND_MODIFICATION: &str = "# hand-tuned: do not lose me\n";
+
+#[given("spec gen has run and the step template was hand-modified")]
+fn spec_gen_ran_and_template_modified(w: &mut CliWorld) {
+    w.run_craftsman(&["spec", "gen"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming spec gen must pass:\n{}",
+        w.combined_output()
+    );
+    let path = w.project_dir().join("tests/steps.bash.template");
+    assert!(path.is_file(), "gen must have created the template");
+    std::fs::write(&path, HAND_MODIFICATION)
+        .unwrap_or_else(|e| panic!("modify {}: {e}", path.display()));
+}
+
+#[then(expr = "the generated bats file contains {string}")]
+fn generated_bats_contains(w: &mut CliWorld, needle: String) {
+    let path = w.project_dir().join("tests/generated_spec.bats");
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    assert!(
+        text.contains(&needle),
+        "{} lacks {needle:?}:\n{text}",
+        path.display()
+    );
+}
+
+#[then("the step template still carries the hand modification")]
+fn template_survived(w: &mut CliWorld) {
+    let path = w.project_dir().join("tests/steps.bash.template");
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    assert_eq!(
+        text, HAND_MODIFICATION,
+        "gen must never overwrite an existing step template"
+    );
+}
+
 #[given(expr = "a craftsman project whose spec has a scenario tagged {string}")]
 fn project_with_tagged_scenario(w: &mut CliWorld, tag: String) {
     w.write("craftsman.toml", MINIMAL_CONFIG);

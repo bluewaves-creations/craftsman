@@ -36,6 +36,25 @@ Feature: Craftsman CLI core
     Then the exit code is 1
     And the output contains "PLAN.md"
 
+  Scenario: Spec gen refuses when the spec has lint errors
+    Given a bash-stack craftsman project whose spec has scenarios "Twice told" and "Twice told"
+    When I run craftsman with "spec gen"
+    Then the exit code is 1
+    And the output contains "spec lint"
+
+  Scenario: Spec gen writes a generated header
+    Given a bash-stack craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    When I run craftsman with "spec gen"
+    Then the exit code is 0
+    And the generated bats file contains "GENERATED"
+
+  Scenario: Spec gen never overwrites step implementations
+    Given a bash-stack craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And spec gen has run and the step template was hand-modified
+    When I run craftsman with "spec gen"
+    Then the exit code is 0
+    And the step template still carries the hand modification
+
   Scenario: Verify fails loudly when the scenario filter matches nothing
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     When I run craftsman verify for the scenario "No such behavior"
