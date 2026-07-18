@@ -14,8 +14,22 @@ fn doctor_round_trip_observes_red_then_green() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("cli/ lives one level under the repo root");
+    // Hermetic gate-tools check: a fresh runner has no ~/.craftsman/tools
+    // yet (the security gate populates it later, online). Presence is what
+    // doctor tests, so satisfy the repo's own pins in a sandboxed dir.
+    let tools = tempfile::tempdir().expect("tools tempdir");
+    let pins = &craftsman::config::Config::load(repo_root)
+        .expect("repo config loads")
+        .config
+        .gates
+        .tools;
+    for (name, version) in pins {
+        std::fs::create_dir_all(tools.path().join(format!("{name}@{version}")))
+            .expect("fake hermetic install");
+    }
     let output = Command::new(env!("CARGO_BIN_EXE_craftsman"))
         .args(["doctor", "--json"])
+        .env("CRAFTSMAN_TOOLS_DIR", tools.path())
         .current_dir(repo_root)
         .output()
         .expect("spawn craftsman doctor");
