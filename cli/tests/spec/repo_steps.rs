@@ -69,25 +69,24 @@ pub fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
     }
 }
 
-/// Fresh single-commit repository: init, stage everything, commit with the
-/// fixture identity — for fixtures that need a resolvable `HEAD`.
+/// Fresh single-commit repository: init, stage everything, commit — for
+/// fixtures that need a resolvable `HEAD`. The identity is written into
+/// the repo config (not passed per-command) so commits the CLI itself
+/// makes later also resolve it — CI runners have no global identity.
 pub fn git_init_commit_all(dir: &std::path::Path) {
     git_init_add(dir);
-    let status = Command::new("git")
-        .args([
-            "-c",
-            "user.name=fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "--quiet",
-            "-m",
-            "init",
-        ])
-        .current_dir(dir)
-        .status()
-        .expect("spawn git commit");
-    assert!(status.success(), "git commit failed in {}", dir.display());
+    for args in [
+        &["config", "user.name", "fixture"][..],
+        &["config", "user.email", "fixture@example.invalid"][..],
+        &["commit", "--quiet", "-m", "init"][..],
+    ] {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .expect("spawn git");
+        assert!(status.success(), "git {args:?} failed in {}", dir.display());
+    }
 }
 
 #[given("a craftsman project with an arch deny rule and a violating import")]
