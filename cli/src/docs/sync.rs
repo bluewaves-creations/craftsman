@@ -7,7 +7,9 @@ use crate::config::Config;
 
 use super::fetch::FetchStatus;
 use super::sources::{Library, Manifest, SourceType};
-use super::{DocsError, SyncOutcome, cache, fetch, lockfiles, now_epoch, rustdoc};
+use super::{
+    DocsError, SyncOutcome, cache, docc, dts, fetch, lockfiles, now_epoch, objects_inv, rustdoc,
+};
 
 /// Sync one library or all of them. Returns per-library outcomes; the
 /// empty vec means the manifest declares no sources (exit 4 at the
@@ -57,7 +59,7 @@ pub fn sync(
 /// the first page), via the same system hasher the tool installer uses.
 fn sha_of_primary(cache_root: &Path, name: &str, version: &str) -> Option<String> {
     let lib = cache::lib_dir(cache_root, name, version);
-    for candidate in ["llms.txt", "rustdoc.json"] {
+    for candidate in ["llms.txt", "rustdoc.json", "objects.inv"] {
         let p = lib.join(candidate);
         if p.is_file() {
             return Some(crate::gates::tools::sha256(&p));
@@ -74,12 +76,6 @@ fn sync_one(
     name: &str,
     lib: &Library,
 ) -> Result<SyncOutcome, DocsError> {
-    if !lib.source.supported() {
-        return Err(DocsError::UnsupportedSource {
-            name: name.to_owned(),
-            source_type: lib.source,
-        });
-    }
     let staging = cache::staging_dir(cache_root, name);
     let _ = std::fs::remove_dir_all(&staging);
     let pages_dir = staging.join("pages");
@@ -114,13 +110,7 @@ fn sync_one(
             fetched = fetch_pages(&lib.urls, &pages_dir, max_pages)?;
         }
         SourceType::File => {
-            let src = lib
-                .path
-                .as_deref()
-                .ok_or_else(|| DocsError::MissingLocation {
-                    source_type: lib.source,
-                    needs: "--path (a local markdown file or directory)".to_owned(),
-                })?;
+            let src = required_path(lib, "a local markdown file or directory")?;
             let src_path = root.join(src);
             let from = if src_path.exists() {
                 src_path
@@ -143,8 +133,33 @@ fn sync_one(
             )?;
             fetched.pages = 1;
         }
-        SourceType::Docc | SourceType::ObjectsInv | SourceType::Dts => {
-            unreachable!("refused above via SourceType::supported")
+        SourceType::Docc => {
+            let src = required_path(lib, "the Swift package directory")?;
+            let (pages, notes) = docc::sync(name, &root.join(src), &staging, &pages_dir, &version)?;
+            fetched.pages = pages;
+            fetched.notes = notes;
+        }
+        SourceType::ObjectsInv => {
+            let url = first_url(lib)?.clone();
+            fetched.pages = sync_objects_inv(&url, &staging, &pages_dir, &mut version)?;
+        }
+        SourceType::Dts => {
+            let src = required_path(
+                lib,
+                "the project directory whose node_modules holds the package",
+            )?;
+            let (pages, pkg_version) = dts::harvest(&root.join(src), name, &pages_dir, max_pages)?;
+            fetched.pages = pages;
+            if pages == max_pages {
+                fetched.notes.push(format!(
+                    "harvest stopped at [docs] max-pages ({max_pages}) — \
+                     remaining declaration files were skipped"
+                ));
+            }
+            // The installed package's own version is authoritative.
+            if let Some(v) = pkg_version {
+                version = v;
+            }
         }
     }
 
@@ -165,6 +180,17 @@ struct Fetched {
     pages: usize,
     skipped: usize,
     notes: Vec<String>,
+}
+
+/// The CLI-written manifest guarantees a path for path-bearing sources; a
+/// hand-edited manifest without one is an error, not a panic.
+fn required_path<'a>(lib: &'a Library, what: &str) -> Result<&'a str, DocsError> {
+    lib.path
+        .as_deref()
+        .ok_or_else(|| DocsError::MissingLocation {
+            source_type: lib.source,
+            needs: format!("--path ({what})"),
+        })
 }
 
 /// The CLI-written manifest guarantees a URL for url-bearing sources; a
@@ -228,6 +254,36 @@ fn sync_docsrs(
     std::fs::write(&api, md).map_err(|source| DocsError::Io { path: api, source })?;
     let _ = std::fs::remove_file(&gz);
     Ok(())
+}
+
+/// Fetch + parse a Sphinx objects.inv; the cached pages are the rendered
+/// index (`inventory.md`) plus `inventory.json` for `docs get`'s on-demand
+/// resolution (the documented objects-inv network exception).
+fn sync_objects_inv(
+    url: &str,
+    staging: &Path,
+    pages_dir: &Path,
+    version: &mut String,
+) -> Result<usize, DocsError> {
+    let inv_path = staging.join("objects.inv");
+    expect_ok(fetch::fetch(url, &inv_path, &[])?, url)?;
+    let bytes = std::fs::read(&inv_path).map_err(|source| DocsError::Io {
+        path: inv_path,
+        source,
+    })?;
+    let inv = objects_inv::parse(url, &bytes)?;
+    // Sphinx sites often stamp 0.0.0 — only a real header version beats
+    // the lockfile/pin fallback chain.
+    if version == "latest" && !inv.version.is_empty() && inv.version != "0.0.0" {
+        inv.version.clone_into(version);
+    }
+    let index = pages_dir.join("inventory.md");
+    std::fs::write(&index, objects_inv::render_index_md(&inv)).map_err(|source| DocsError::Io {
+        path: index,
+        source,
+    })?;
+    objects_inv::save(staging, &inv)?;
+    Ok(1)
 }
 
 /// A mandatory fetch (index, JSON artifact): every non-OK status is fatal.

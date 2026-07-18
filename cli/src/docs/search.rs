@@ -127,6 +127,10 @@ fn known_libraries(manifest: &Manifest) -> Vec<String> {
 
 /// Resolve `docs get <name>/<page>`: the page's cached markdown.
 ///
+/// Offline except for ONE documented exception: an objects-inv library
+/// resolves an uncached object name via its inventory and fetches the
+/// target page on demand into the cache — the second get is offline.
+///
 /// # Errors
 /// [`DocsError::BadPageSpec`] without a `/`;
 /// [`DocsError::UnknownLibrary`] when the library is not in the manifest
@@ -139,12 +143,12 @@ pub fn get_page(
     let (name, page) = spec.split_once('/').ok_or_else(|| DocsError::BadPageSpec {
         spec: spec.to_owned(),
     })?;
-    if !manifest.libraries.contains_key(name) {
+    let Some(declared) = manifest.libraries.get(name) else {
         return Err(DocsError::UnknownLibrary {
             name: name.to_owned(),
             known: known_libraries(manifest),
         });
-    }
+    };
     let lib = cache::find_lib_dir(cache_root, name).ok_or_else(|| DocsError::UnknownLibrary {
         name: name.to_owned(),
         known: known_libraries(manifest),
@@ -169,12 +173,58 @@ pub fn get_page(
             })?;
             Ok((text, path))
         }
+        None if declared.source == crate::docs::sources::SourceType::ObjectsInv => {
+            fetch_inventory_page(&lib, name, page, &pages)
+        }
         None => Err(DocsError::UnknownPage {
             library: name.to_owned(),
             page: page.to_owned(),
             available: pages,
         }),
     }
+}
+
+/// The objects-inv on-demand path: resolve `page` as an object name in the
+/// cached inventory, fetch its target page into the cache, serve it.
+fn fetch_inventory_page(
+    lib: &Path,
+    name: &str,
+    page: &str,
+    pages: &[String],
+) -> Result<(String, PathBuf), DocsError> {
+    let unknown = || DocsError::UnknownPage {
+        library: name.to_owned(),
+        page: page.to_owned(),
+        available: pages.to_vec(),
+    };
+    let inv = crate::docs::objects_inv::load(lib).ok_or_else(unknown)?;
+    let entry = inv.resolve(page).ok_or_else(unknown)?;
+    let url = inv.url(entry);
+    // The page URL without the #fragment; fetched verbatim (usually the
+    // site's HTML — data, not instructions, like everything cached here).
+    let page_url = url.split('#').next().unwrap_or(&url);
+    let dest = lib
+        .join("pages")
+        .join(crate::docs::fetch::page_slug(page_url));
+    eprintln!(
+        "docs get: {} is not cached — fetching {page_url} on demand \
+         (the objects-inv network exception; cached for next time)",
+        entry.name
+    );
+    match crate::docs::fetch::fetch(page_url, &dest, &[])? {
+        crate::docs::fetch::FetchStatus::Ok => {}
+        status => {
+            return Err(DocsError::CurlFailed {
+                url: page_url.to_owned(),
+                detail: format!("{status:?}"),
+            });
+        }
+    }
+    let text = std::fs::read_to_string(&dest).map_err(|source| DocsError::Io {
+        path: dest.clone(),
+        source,
+    })?;
+    Ok((text, dest))
 }
 
 #[cfg(test)]

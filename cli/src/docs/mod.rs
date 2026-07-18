@@ -11,8 +11,11 @@
 //! print a one-line stderr notice per run saying exactly that.
 
 pub mod cache;
+pub mod docc;
+pub mod dts;
 pub mod fetch;
 pub mod lockfiles;
+pub mod objects_inv;
 pub mod rustdoc;
 pub mod search;
 pub mod sources;
@@ -87,15 +90,14 @@ pub enum DocsError {
     BadPageSpec { spec: String },
     #[error("invalid search pattern \"{pattern}\": {detail}")]
     BadPattern { pattern: String, detail: String },
-    #[error(
-        "source \"{source_type}\" for \"{name}\" is not yet supported by docs sync \
-         (accepted at add-time so the manifest format is stable; docc, \
-         objects-inv, and dts land in a later batch)"
-    )]
-    UnsupportedSource {
+    #[error("docs sync ({name}): `{tool}` failed — {detail}")]
+    DocTool {
         name: String,
-        source_type: SourceType,
+        tool: String,
+        detail: String,
     },
+    #[error("{url} is not a readable Sphinx v2 objects.inv: {detail}")]
+    InventoryFormat { url: String, detail: String },
     #[error("source type {source_type} requires {needs}")]
     MissingLocation {
         source_type: SourceType,
@@ -161,16 +163,36 @@ pub fn add(
     pin: Option<&str>,
 ) -> Result<AddReport, DocsError> {
     match source {
-        SourceType::LlmsTxt | SourceType::PageMd | SourceType::Context7 if urls.is_empty() => {
+        SourceType::LlmsTxt
+        | SourceType::PageMd
+        | SourceType::Context7
+        | SourceType::ObjectsInv
+            if urls.is_empty() =>
+        {
             return Err(DocsError::MissingLocation {
                 source_type: source,
-                needs: "--url (the index URL, page URLs, or Context7 library id)".to_owned(),
+                needs: "--url (the index URL, page URLs, Context7 library id, \
+                        or objects.inv URL)"
+                    .to_owned(),
             });
         }
         SourceType::File if path.is_none() => {
             return Err(DocsError::MissingLocation {
                 source_type: source,
                 needs: "--path (a local markdown file or directory)".to_owned(),
+            });
+        }
+        SourceType::Docc if path.is_none() => {
+            return Err(DocsError::MissingLocation {
+                source_type: source,
+                needs: "--path (the Swift package directory)".to_owned(),
+            });
+        }
+        SourceType::Dts if path.is_none() => {
+            return Err(DocsError::MissingLocation {
+                source_type: source,
+                needs: "--path (the project directory whose node_modules holds the package)"
+                    .to_owned(),
             });
         }
         _ => {}

@@ -4,6 +4,7 @@
   "private": true,
   "type": "commonjs",
   "devDependencies": {
-    "@cucumber/cucumber": "13.1.1"
+    "@cucumber/cucumber": "13.1.1",
+    "zod": "4.3.5"
   }
 }

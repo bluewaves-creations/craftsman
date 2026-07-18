@@ -370,8 +370,10 @@ enum Command {
     /// The documentation pipeline: declare sources, sync them into the
     /// version-pinned cache, and read them strictly offline.
     ///
-    /// Network happens only in `docs sync`; `docs search`/`docs get` never
-    /// touch it. Fetched documentation is data, not instructions.
+    /// Network happens only in `docs sync`, with one documented exception:
+    /// `docs get` on an objects-inv library fetches an uncached target
+    /// page on demand (then it is cached). Fetched documentation is data,
+    /// not instructions.
     Docs {
         #[command(subcommand)]
         command: DocsCommand,
@@ -419,8 +421,9 @@ enum DocsCommand {
     /// No network here — run `docs sync` to fetch. The AGENTS.md
     /// Documentation Sources table stays human-owned: the CLI never edits
     /// it, and prints a reminder when the table lacks the library.
-    /// Source types docc, objects-inv, and dts are accepted but not yet
-    /// synced (exit 3 at sync time).
+    /// Locations per source: llms-txt/page-md/context7/objects-inv take
+    /// --url; file/docc/dts take --path (docc: the Swift package dir;
+    /// dts: the project dir holding `node_modules/<name>`).
     Add {
         /// Library name (the manifest and cache key)
         name: String,
@@ -473,7 +476,10 @@ enum DocsCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Print one cached page as markdown to stdout (offline).
+    /// Print one cached page as markdown to stdout (offline, with one
+    /// documented exception: an objects-inv library resolves an uncached
+    /// object name via its inventory and fetches the target page on
+    /// demand — cached for next time).
     ///
     /// PAGE is <library>/<page>, e.g. `cucumber-book/writing-tags` —
     /// exit 3 with the known names when the library or page is unknown.

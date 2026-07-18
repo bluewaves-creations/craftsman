@@ -20,11 +20,8 @@ use serde::{Deserialize, Serialize};
 
 use super::DocsError;
 
-/// The closed source-type enum from the design doc.
-///
-/// `docc`, `objects-inv`, and `dts` are accepted at `docs add` so the
-/// config format is stable, but `docs sync` refuses them with "not yet
-/// supported" (exit 3) — they are FUTURE per the Batch 7 scope.
+/// The closed source-type enum from the design doc — all eight implemented
+/// (docc/objects-inv/dts landed in Batch 9b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 #[value(rename_all = "kebab-case")]
@@ -39,20 +36,15 @@ pub enum SourceType {
     DocsrsJson,
     /// Context7 REST v2 aggregator (keyless low-rate; `CONTEXT7_API_KEY`).
     Context7,
-    /// FUTURE: `DocC` markdown export (`docs sync` refuses, exit 3).
+    /// `DocC` markdown export of a Swift package (`--path` = package dir).
     Docc,
-    /// FUTURE: Sphinx objects.inv (`docs sync` refuses, exit 3).
+    /// Sphinx objects.inv inventory (`--url` = the objects.inv URL);
+    /// `docs get` fetches target pages on demand — the one documented
+    /// network exception outside sync.
     ObjectsInv,
-    /// FUTURE: vendored `.d.ts` (`docs sync` refuses, exit 3).
+    /// Vendored `node_modules/<name>/**/*.d.ts`, cached verbatim
+    /// (`--path` = the project directory).
     Dts,
-}
-
-impl SourceType {
-    /// Sources implemented by `docs sync` today.
-    #[must_use]
-    pub const fn supported(self) -> bool {
-        !matches!(self, Self::Docc | Self::ObjectsInv | Self::Dts)
-    }
 }
 
 impl fmt::Display for SourceType {
@@ -203,14 +195,6 @@ mod tests {
         std::fs::write(tmp.path().join("manifest.json"), "{nope").expect("write");
         let err = Manifest::load(tmp.path()).expect_err("corrupt manifest must error");
         assert!(matches!(err, DocsError::ManifestParse { .. }), "{err}");
-    }
-
-    #[test]
-    fn future_sources_are_named_but_unsupported() {
-        for s in [SourceType::Docc, SourceType::ObjectsInv, SourceType::Dts] {
-            assert!(!s.supported(), "{s} is FUTURE");
-        }
-        assert!(SourceType::LlmsTxt.supported());
     }
 
     #[test]
