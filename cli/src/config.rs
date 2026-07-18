@@ -40,7 +40,7 @@ pub enum ConfigError {
 }
 
 /// Per-gate enforcement mode. Absent gate = off.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GateMode {
     Off,
@@ -177,9 +177,43 @@ pub struct Gates {
     pub perf: Option<GateMode>,
     pub a11y: Option<GateMode>,
     pub visual: Option<GateMode>,
-    /// Version pins; adapters install hermetically (Batch 6).
+    /// Minimum severity at which a security finding blocks
+    /// (`info|low|medium|high|critical`). Default: `high` — HIGH and
+    /// CRITICAL findings fail the gate.
+    pub security_threshold: Option<crate::gates::Severity>,
+    /// Version pins; adapters install hermetically (Batch 6a).
     #[serde(default)]
     pub tools: BTreeMap<String, String>,
+}
+
+impl Gates {
+    /// Every gate in command-surface order with its configured mode
+    /// (`None` = off). The verify → lint → security prefix is the Batch 6a
+    /// orchestration order.
+    #[must_use]
+    pub const fn by_name(&self) -> [(&'static str, Option<GateMode>); 9] {
+        [
+            ("verify", self.verify),
+            ("lint", self.lint),
+            ("security", self.security),
+            ("arch", self.arch),
+            ("health", self.health),
+            ("mutate", self.mutate),
+            ("perf", self.perf),
+            ("a11y", self.a11y),
+            ("visual", self.visual),
+        ]
+    }
+
+    /// The mode of one gate by name; `None` for unknown names or absent
+    /// (= off) gates.
+    #[must_use]
+    pub fn mode(&self, name: &str) -> Option<GateMode> {
+        self.by_name()
+            .into_iter()
+            .find(|(gate, _)| *gate == name)
+            .and_then(|(_, mode)| mode)
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]

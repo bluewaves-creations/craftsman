@@ -4,6 +4,7 @@
 pub mod codegen;
 pub mod config;
 pub mod doctor;
+pub mod gates;
 pub mod ledger;
 pub mod plan;
 pub mod spec;
