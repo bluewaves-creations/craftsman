@@ -154,6 +154,18 @@ const fn tokens(style: OsArch) -> (&'static str, &'static str) {
                 "x86_64"
             },
         ),
+        OsArch::K6 => (
+            if cfg!(target_os = "macos") {
+                "macos"
+            } else {
+                "linux"
+            },
+            if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "amd64"
+            },
+        ),
         OsArch::None => ("", ""),
     }
 }

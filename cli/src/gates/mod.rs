@@ -20,6 +20,7 @@ pub mod check_all;
 pub mod health;
 pub mod lint;
 pub mod mutate;
+pub mod runtime;
 pub mod security;
 pub mod tools;
 

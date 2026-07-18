@@ -55,6 +55,8 @@ pub enum OsArch {
     Go,
     /// `darwin`/`linux` + `aarch64`/`x86_64` (shellcheck).
     Uname,
+    /// `macos`/`linux` + `arm64`/`amd64` (k6 releases).
+    K6,
     /// Asset name carries no os/arch (`SwiftLint`'s universal zip).
     None,
 }
@@ -72,6 +74,9 @@ pub enum ParserKind {
     GitleaksJson,
     SemgrepJson,
     OsvJson,
+    /// Output is parsed by the owning gate module (runtime gates read
+    /// report files, not stdout) — never routed through [`parse`].
+    External,
 }
 
 /// How `gate baseline` records this tool's existing findings.
@@ -257,6 +262,29 @@ pub const TOOLS: &[GateTool] = &[
         accepts_files: false,
     },
     GateTool {
+        // The perf gate's k6 path (runtime.rs orchestrates; base args and
+        // parsing live there because the summary comes from an export
+        // file, not stdout).
+        name: "k6",
+        gate: "perf",
+        stack: "*",
+        default_version: "2.1.0",
+        runner: Runner::Github {
+            repo: "grafana/k6",
+            asset: "k6-v{version}-{os}-{arch}.zip",
+            archive: Archive::Zip,
+            binary: "k6-v{version}-{os}-{arch}/k6",
+            os_arch: OsArch::K6,
+            path_fallback: true,
+        },
+        base_args: &[],
+        parser: ParserKind::External,
+        // 0 = pass; 99 = thresholds crossed (the verdict, not a failure).
+        success_codes: &[0, 99],
+        baseline: BaselineKind::Snapshot,
+        accepts_files: false,
+    },
+    GateTool {
         name: "osv-scanner",
         gate: "security",
         stack: "*",
@@ -302,6 +330,10 @@ pub fn parse(tool: &GateTool, stdout: &str, stderr: &str) -> Result<Vec<Finding>
         ParserKind::GitleaksJson => parse_gitleaks(stdout),
         ParserKind::SemgrepJson => parse_semgrep(stdout),
         ParserKind::OsvJson => parse_osv(stdout),
+        ParserKind::External => Err(GateError::Parse {
+            tool: tool.name,
+            detail: "output is parsed by the owning gate module, never here".to_owned(),
+        }),
     }
 }
 
