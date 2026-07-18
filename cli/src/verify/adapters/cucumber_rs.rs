@@ -9,7 +9,7 @@
 //! matching nothing also exits 0 (ADR-002); craftsman counts scenarios
 //! itself.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::{AdapterError, tail};
@@ -33,18 +33,7 @@ pub fn run(
     runner_target: &str,
     scenario_names: Option<&[String]>,
 ) -> Result<Vec<ScenarioResult>, AdapterError> {
-    let results_dir = project_dir.join("target").join("craftsman");
-    std::fs::create_dir_all(&results_dir).map_err(|source| AdapterError::ResultsPath {
-        path: results_dir.clone(),
-        source,
-    })?;
-    let results_path = results_dir.join(format!("verify-{runner_target}.json"));
-    if results_path.exists() {
-        std::fs::remove_file(&results_path).map_err(|source| AdapterError::ResultsPath {
-            path: results_path.clone(),
-            source,
-        })?;
-    }
+    let results_path = fresh_results_path(project_dir, runner_target)?;
 
     let mut cmd = Command::new("cargo");
     cmd.arg("test").arg("--test").arg(runner_target);
@@ -68,24 +57,12 @@ pub fn run(
     eprint!("{}", String::from_utf8_lossy(&output.stdout));
 
     if !results_path.is_file() {
-        if output.status.success() {
-            return Err(AdapterError::NoResults {
-                path: results_path,
-                hint: format!(
-                    "the `--test {runner_target}` target must write cucumber-json \
-                     to the path in ${RESULTS_ENV} (ADR-003 convention)"
-                ),
-            });
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        return Err(AdapterError::RunnerFailed {
-            command: command_line,
-            code: output
-                .status
-                .code()
-                .map_or_else(|| "signal".to_owned(), |c| c.to_string()),
-            output_tail: tail(&stdout, 20),
-        });
+        return Err(missing_results(
+            runner_target,
+            results_path,
+            command_line,
+            &output,
+        ));
     }
 
     let text =
@@ -96,6 +73,52 @@ pub fn run(
     // The JSON artifact is the verdict source even when the harness process
     // failed (run_and_exit panics on red scenarios after writing the file).
     Ok(parse_cucumber_json(&text, CucumberJsonDialect::CucumberRs)?)
+}
+
+/// Ensure `target/craftsman/verify-<target>.json` exists as a fresh slot:
+/// directory created, any stale artifact removed.
+fn fresh_results_path(project_dir: &Path, runner_target: &str) -> Result<PathBuf, AdapterError> {
+    let results_dir = project_dir.join("target").join("craftsman");
+    std::fs::create_dir_all(&results_dir).map_err(|source| AdapterError::ResultsPath {
+        path: results_dir.clone(),
+        source,
+    })?;
+    let results_path = results_dir.join(format!("verify-{runner_target}.json"));
+    if results_path.exists() {
+        std::fs::remove_file(&results_path).map_err(|source| AdapterError::ResultsPath {
+            path: results_path.clone(),
+            source,
+        })?;
+    }
+    Ok(results_path)
+}
+
+/// The error for a run that left no results file: a green runner broke the
+/// ADR-003 convention; a red one simply failed.
+fn missing_results(
+    runner_target: &str,
+    results_path: PathBuf,
+    command_line: String,
+    output: &std::process::Output,
+) -> AdapterError {
+    if output.status.success() {
+        return AdapterError::NoResults {
+            path: results_path,
+            hint: format!(
+                "the `--test {runner_target}` target must write cucumber-json \
+                 to the path in ${RESULTS_ENV} (ADR-003 convention)"
+            ),
+        };
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    AdapterError::RunnerFailed {
+        command: command_line,
+        code: output
+            .status
+            .code()
+            .map_or_else(|| "signal".to_owned(), |c| c.to_string()),
+        output_tail: tail(&stdout, 20),
+    }
 }
 
 /// Anchored alternation of regex-escaped names for cucumber-rs `--name`
