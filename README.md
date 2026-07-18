@@ -1,30 +1,62 @@
 # Craftsman
 
+[![CI](https://github.com/bluewaves-creations/craftsman/actions/workflows/ci.yml/badge.svg)](https://github.com/bluewaves-creations/craftsman/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bluewaves-creations/craftsman)](https://github.com/bluewaves-creations/craftsman/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/bluewaves-creations/craftsman)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-2024_edition-orange.svg)](cli/Cargo.toml)
+
+**The human owns the vision. The agent does the work. The machine says pass.**
+
 Craftsman is a development system for working with coding agents without
 lowering the bar: the human owns the vision and the spec, the agent does
 the work, and a deterministic CLI — this repo — delivers every verdict as
-an exit code. No LLM ever judges whether code works here.
+an exit code. No LLM ever judges whether code works here. Not once,
+anywhere in the binary.
+
+Why that matters, in one paragraph: LLM-as-judge recognizes correct code
+52–78% of the time; mechanical, impact-mapped test feedback cut agent
+regressions by 70% where "please do TDD" prompts made them worse. So
+Craftsman moves every quality rule that *can* be mechanized into a gate,
+and keeps prose only for what machines can't hold — taste and vision.
+The long-form case is in [the paper](docs/2026-07-18-craftsman-paper.md).
 
 Three legs, one contract:
 
 - **`craftsman` CLI** (`cli/`, Rust) — spec engine, per-stack verify
-  adapters, gate orchestration with ratcheting baselines, docs pipeline,
-  ledger commits, bootstrap. Single binary, no daemon, no telemetry.
+  adapters, gate orchestration with ratcheting baselines, offline docs
+  pipeline, ledger commits, receipt-driven self-update, bootstrap.
+  Single binary, no daemon, no telemetry, no network in any verdict path.
 - **Six skills** (`skills/`) — `craftsman-init/spec/plan/implement/fix/
   review`, embedded in the binary and installed by `craftsman setup`.
+  Agent-agnostic per the [agentskills](https://agentskills.io) spec.
 - **The committed contract** — `craftsman.toml`, `SPEC.md` (human-owned
   Gherkin), `AGENTS.md` (≤100 lines of rules), `.craftsman/baselines/`.
 
 ## Install
 
+From the latest GitHub Release (recommended — writes the install receipt
+that powers `craftsman update` self-updates):
+
 ```sh
-sh install.sh          # release binary if present, else cargo install; then setup
+curl -LsSf https://github.com/bluewaves-creations/craftsman/releases/latest/download/craftsman-installer.sh | sh
+craftsman setup     # installs the six skills for every agent on the machine
 ```
 
-or by hand: `cargo install --path cli --locked && craftsman setup`.
-`setup` places the six skills in `~/.agents/skills/` and links them for
+Alternatives: `sh install.sh` from a checkout (offline; release binary if
+present, else cargo), or `cargo install --path cli --locked`.
+
+`setup` places the skills in `~/.agents/skills/` and links them for
 Claude Code; Codex/Cursor/Gemini/opencode/Goose/Pi read the canonical dir
-natively. It never destroys anything it cannot prove it wrote.
+natively. It never destroys anything it cannot prove it wrote, and
+`craftsman update` keeps both binary and skills current from then on.
+
+> **Replaces Superpowers-style skill packs.** Many agent harnesses ship
+> with or recommend broad workflow plugins (Superpowers and its
+> descendants). Craftsman covers that ground with a different contract —
+> machine verdicts instead of self-assessment — and the two will compete
+> for the same triggers ("write tests", "plan this", "fix the bug").
+> Uninstall overlapping packs before `craftsman setup`, or expect your
+> agent to route work to two methodologies at once.
 
 ## The five-minute tour
 
@@ -69,12 +101,25 @@ Exit codes everywhere: `0` pass · `1` verification failure · `2` usage ·
 `3` orchestrator error · `4` empty selection. Every command takes
 `--json` (JSON on stdout, progress on stderr).
 
+## Stacks
+
+Swift (SwiftPM + Swift Testing, and `xcodebuild` for Apple app targets),
+Python (uv + pytest-bdd), TypeScript (bun + cucumber-js), Rust
+(cucumber-rs), Bash (bats) — one Gherkin dialect, one result schema, one
+exit-code contract across all of them. On Apple platforms Craftsman
+composes with Xcode's exportable Agent Skills rather than duplicating
+them: Apple's skills own platform idiom, Craftsman owns process.
+
 ## Self-hosting
 
-This repo eats its own cooking: `SPEC.md` at the root holds **34
-scenarios** run by cucumber-rs through `craftsman verify`, every commit
-goes through `craftsman commit`, and CI finishes with `check-all` on a
-fresh runner. The `.craftsman/baselines/` ratchet is committed history.
+This repo eats its own cooking: `SPEC.md` at the root holds **39
+scenarios** (38 hermetic, one `@requires-network`, run live against the
+real release channel) executed by cucumber-rs through `craftsman verify`;
+every commit goes through `craftsman commit`; CI finishes with
+`check-all` on fresh macOS and Linux runners plus a Swift-on-Linux
+canary. All five enabled gates run strict at zero baselines. The paper
+you can hand to a colleague lives at
+[`docs/2026-07-18-craftsman-paper.md`](docs/2026-07-18-craftsman-paper.md).
 
 ## Repo map
 
@@ -83,15 +128,21 @@ fresh runner. The `.craftsman/baselines/` ratchet is committed history.
 | `cli/` | the Rust binary (modules: spec, verify, gates, docs, ledger, bootstrap) |
 | `skills/` | the six skills + the shared conventions file (byte-identical copies, test-enforced) |
 | `docs/design/` | CLI surface + skill family designs (the authority chain) |
-| `docs/plans/` | the batched implementation plan (Batches 0–8) |
-| `docs/research/` | the 22-document research corpus |
+| `docs/plans/` | the batched implementation plan + the dogfood program |
+| `docs/research/` | the 24-document research corpus (claims graded by strength) |
 | `decisions/` | ADRs + generated `index.md` (`craftsman adr index`) |
 | `SPEC.md` | craftsman's own acceptance spec |
 
 ## Status
 
-v0.1.0 — team-local. Distribution is a GitHub Release built by cargo-dist
-(config committed, pinned 0.32.0) plus `install.sh`; `craftsman update`
-refreshes skills from the binary and points at the reinstall path — real
-self-update is future work. Known honest-undone: xcodebuild verify
-variant, Linux Swift CI, python/ts mutation e2e through craftsman.
+**v0.2.0** — released via cargo-dist (shell installer + macOS arm64/x86_64
+and Linux x86_64 tarballs). `craftsman update` self-updates from the
+release channel behind the install receipt and refreshes the installed
+skills from the binary. Remaining honest-undone lives in the plan's gap
+register (Batch 12) and [ADR-005](decisions/) — this project keeps a
+public list of what is *not* finished, because a system built on
+unforgeable verdicts doesn't get to round up about itself.
+
+## License
+
+[MIT](LICENSE) © 2026 Bluewaves
