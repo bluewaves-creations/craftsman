@@ -286,6 +286,35 @@ fn run_semgrep(
     })
 }
 
+/// The osv-scanner database dir + argv: offline databases (downloaded on
+/// first use — the one allowed network moment) and one `--lockfile` per
+/// tracked lockfile.
+fn osv_invocation(
+    tool: &'static GateTool,
+    resolved: &tools::Resolved,
+    lockfiles: &[String],
+) -> Result<(std::path::PathBuf, Vec<String>), GateError> {
+    let db_dir = tools::tools_dir()?.join("osv-db");
+    let first_use = !db_dir.is_dir();
+    if first_use {
+        std::fs::create_dir_all(&db_dir).map_err(|source| GateError::Io {
+            path: db_dir.clone(),
+            source,
+        })?;
+    }
+    let mut argv = resolved.argv.clone();
+    argv.extend(tool.base_args.iter().map(|s| (*s).to_owned()));
+    argv.push("--offline-vulnerabilities".to_owned());
+    if first_use {
+        argv.push("--download-offline-databases".to_owned());
+    }
+    for lockfile in lockfiles {
+        argv.push("--lockfile".to_owned());
+        argv.push(lockfile.clone());
+    }
+    Ok((db_dir, argv))
+}
+
 /// osv-scanner over tracked lockfiles with local (offline) databases; the
 /// first run downloads them, afterwards no network.
 fn run_osv(
@@ -301,25 +330,7 @@ fn run_osv(
             note: Some("osv-scanner: no tracked lockfiles — skipped".to_owned()),
         });
     }
-    let db_dir = tools::tools_dir()?.join("osv-db");
-    let first_use = !db_dir.is_dir();
-    if first_use {
-        std::fs::create_dir_all(&db_dir).map_err(|source| GateError::Io {
-            path: db_dir.clone(),
-            source,
-        })?;
-    }
-    let mut argv = resolved.argv.clone();
-    argv.extend(tool.base_args.iter().map(|s| (*s).to_owned()));
-    argv.push("--offline-vulnerabilities".to_owned());
-    if first_use {
-        // The one allowed network moment: install the databases.
-        argv.push("--download-offline-databases".to_owned());
-    }
-    for lockfile in lockfiles {
-        argv.push("--lockfile".to_owned());
-        argv.push(lockfile.clone());
-    }
+    let (db_dir, argv) = osv_invocation(tool, resolved, lockfiles)?;
     let output = exec(
         &argv,
         root,

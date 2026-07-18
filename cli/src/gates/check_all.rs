@@ -105,19 +105,7 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
         let summary = if gate == "verify" {
             run_verify(root, changed)?
         } else {
-            let outcome = match gate {
-                "lint" => lint::run(root, config, changed_set.as_deref(), mode)?,
-                "arch" => arch::run(root, config, changed_set.as_deref(), mode)?,
-                "security" => security::run(root, config, changed_set.as_deref(), mode)?,
-                "health" => health::run(root, config, changed_set.as_deref(), mode)?,
-                // Always diff-scoped inside check-all; full runs need the
-                // explicit `craftsman mutate --all --yes-slow`.
-                "mutate" => mutate::run(root, config, mutate::Scope::Diff, mode)?,
-                "perf" | "a11y" | "visual" => {
-                    runtime::run(root, config, gate, changed_set.as_deref(), mode)?
-                }
-                other => unreachable!("unknown gate {other}"),
-            };
+            let outcome = run_gate(gate, root, config, changed_set.as_deref(), mode)?;
             let summary = summarize(gate, &outcome);
             outcomes.push(outcome);
             summary
@@ -135,6 +123,27 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
     }
 
     Ok(Report { gates, outcomes })
+}
+
+/// Run one non-verify gate under its configured mode.
+fn run_gate(
+    gate: &'static str,
+    root: &Path,
+    config: &Config,
+    changed_set: Option<&[String]>,
+    mode: GateMode,
+) -> Result<GateOutcome, GateError> {
+    match gate {
+        "lint" => lint::run(root, config, changed_set, mode),
+        "arch" => arch::run(root, config, changed_set, mode),
+        "security" => security::run(root, config, changed_set, mode),
+        "health" => health::run(root, config, changed_set, mode),
+        // Always diff-scoped inside check-all; full runs need the
+        // explicit `craftsman mutate --all --yes-slow`.
+        "mutate" => mutate::run(root, config, mutate::Scope::Diff, mode),
+        "perf" | "a11y" | "visual" => runtime::run(root, config, gate, changed_set, mode),
+        other => unreachable!("unknown gate {other}"),
+    }
 }
 
 fn summarize(gate: &'static str, outcome: &GateOutcome) -> GateSummary {
