@@ -48,7 +48,9 @@ install_from_source() {
         exit 1
     fi
     say "no release binary found — building with cargo (a few minutes)…"
-    cargo install --path "$REPO_DIR/cli" --locked
+    # --force: re-running the installer must be idempotent — without it,
+    # cargo stops on "binary `craftsman` already exists" (dogfood finding).
+    cargo install --path "$REPO_DIR/cli" --locked --force
     CRAFTSMAN="$(command -v craftsman || printf '%s' "$HOME/.cargo/bin/craftsman")"
     say "installed via cargo -> $CRAFTSMAN"
 }
