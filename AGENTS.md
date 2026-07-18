@@ -27,10 +27,10 @@ Design authority: `docs/design/2026-07-17-cli-surface-design.md` and `2026-07-17
 
 | Library / Surface | Source | Location | Pinned | Verify |
 |---|---|---|---|---|
-| clap | docsrs | https://docs.rs/clap/4 | 4.x | cargo check |
-| gherkin (cucumber-rs) | docsrs | https://docs.rs/gherkin | 0.16.x | cargo check |
-| cucumber-rs | llms.txt-less; book | https://cucumber-rs.github.io/cucumber/main/ | 0.23.x | cargo check |
-| serde / toml | docsrs | https://docs.rs/toml | latest | cargo check |
+| clap | docsrs-json | https://docs.rs/crate/clap | 4.x (Cargo.lock) | cargo check |
+| gherkin (cucumber-rs) | docsrs-json | https://docs.rs/crate/gherkin | 0.16.x (Cargo.lock) | cargo check |
+| cucumber-book (cucumber-rs book) | llms-txt | https://raw.githubusercontent.com/cucumber-rs/cucumber/main/book/src/SUMMARY.md | 0.23.x | cargo check |
+| serde / toml | docsrs-json | https://docs.rs/crate/toml | latest | cargo check |
 | Swift Testing (spikes) | file | Apple docs via sosumi.ai URL-swap | Swift 6.3 | swift test |
 
-Unlisted library → STOP and ask.
+Sources are synced into `.craftsman/docs/` via `craftsman docs add`/`sync`; query offline with `craftsman docs search <query> [--lib <name>]`. Unlisted library → STOP and ask.
