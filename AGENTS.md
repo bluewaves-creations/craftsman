@@ -9,7 +9,7 @@ This repo builds the Craftsman Dev system: the `craftsman` CLI (`cli/`, Rust), t
 - Install: `sh install.sh` (release binary or cargo, then `craftsman setup`) · Release config: `dist` (cargo-dist 0.32.0, Homebrew)
 - Skill validation: `uvx --from skills-ref agentskills validate skills/<skill-dir>`
 - Fixture runners: `uv` for Python, `bun`/`bunx` for JS/TS (never npm/npx/node directly) — both on PATH on this machine
-- Swift toolchain (spikes): Swift 6.3.3 via Xcode 26.x on this machine
+- Swift toolchains: Xcode 26.6 (selected, /Applications/Xcode.app) and Xcode 27.0 (/Applications/Xcode-beta.app — the team's target; select via DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer); xcodebuild round trip proven under both (2026-07-18)
 
 ## Hard constraints
 
