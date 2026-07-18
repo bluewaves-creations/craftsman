@@ -1,0 +1,9 @@
+{
+  "name": "static-site",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.2",
+    "@playwright/test": "1.61.1"
+  }
+}

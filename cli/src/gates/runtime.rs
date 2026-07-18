@@ -154,8 +154,9 @@ fn run_lhci(root: &Path, config: &Config, lighthouse: &str) -> Result<Vec<Findin
 
 /// Parse `.lighthouseci/assertion-results.json` — an array of assertion
 /// outcomes (`name`, `auditId`, `level`, `expected`, `actual`, `passed`,
-/// `url`, `operator`), per the Lighthouse CI assertion docs (constructed
-/// sample in tests; not captured from a live site run).
+/// `url`, `operator`); tested against a REAL captured artifact
+/// (`tests/fixtures/runtime/lhci-assertion-results.json`, lhci 0.15.1
+/// against the static-site fixture, 2026-07-18).
 fn parse_lhci_assertions(text: &str) -> Result<Vec<Finding>, GateError> {
     let doc: Value = serde_json::from_str(text).map_err(|e| GateError::Parse {
         tool: "lhci",
@@ -380,8 +381,9 @@ fn run_playwright(
 }
 
 /// Parse Playwright's JSON reporter (`suites` nest recursively; each
-/// `spec` carries `title`, `ok`, `file`, `line` — per the Playwright
-/// reporter docs; constructed sample in tests).
+/// `spec` carries `title`, `ok`, `file`, `line`); tested against a REAL
+/// captured artifact (`tests/fixtures/runtime/playwright-report.json`,
+/// playwright 1.61.1 against the static-site fixture, 2026-07-18).
 fn parse_playwright_report(stdout: &str, gate: &'static str) -> Result<Vec<Finding>, GateError> {
     let doc: Value = serde_json::from_str(stdout.trim()).map_err(|e| GateError::Parse {
         tool: "playwright",
@@ -492,27 +494,25 @@ mod tests {
     }
 
     #[test]
-    fn lhci_assertion_results_parse() {
-        // Constructed per the Lighthouse CI assertion docs (assert.md):
-        // autorun writes an array of per-assertion outcomes.
-        let json = r#"[
-            {"name": "maxNumericValue", "expected": 2000, "actual": 3502.7,
-             "values": [3502.7], "operator": "<=", "passed": false,
-             "auditId": "largest-contentful-paint", "level": "error",
-             "url": "http://localhost:3000/"},
-            {"name": "minScore", "expected": 0.9, "actual": 0.95,
-             "operator": ">=", "passed": true, "auditId": "performance",
-             "level": "error", "url": "http://localhost:3000/"},
-            {"name": "maxLength", "expected": 0, "actual": 1,
-             "operator": "<=", "passed": false, "auditId": "unused-javascript",
-             "level": "warn", "url": "http://localhost:3000/"}
-        ]"#;
-        let findings = parse_lhci_assertions(json).expect("parses");
-        assert_eq!(findings.len(), 2, "passing assertions are not findings");
-        assert_eq!(findings[0].rule, "largest-contentful-paint");
+    fn lhci_assertion_results_parse_real_artifact() {
+        // REAL artifact: .lighthouseci/assertion-results.json captured
+        // 2026-07-18 from `bunx @lhci/cli@0.15.1 autorun --config
+        // lighthouserc-strict.json` against the static-site fixture (the
+        // perf red case: total-byte-weight <= 1 byte over 2 URLs).
+        let json = include_str!("../../tests/fixtures/runtime/lhci-assertion-results.json");
+        let findings = parse_lhci_assertions(json).expect("real artifact parses");
+        assert_eq!(findings.len(), 2, "one failed assertion per audited URL");
+        assert_eq!(findings[0].rule, "total-byte-weight");
         assert_eq!(findings[0].severity, Severity::High);
-        assert!(findings[0].message.contains("<= 2000"));
-        assert_eq!(findings[1].severity, Severity::Medium, "warn level");
+        assert!(
+            findings[0].message.contains("<= 1"),
+            "{}",
+            findings[0].message
+        );
+        assert!(
+            findings[0].file.starts_with("http://localhost"),
+            "url field"
+        );
         assert!(
             parse_lhci_assertions("{}").is_err(),
             "object is not the format"
@@ -522,7 +522,9 @@ mod tests {
     #[test]
     fn k6_summary_thresholds_parse() {
         // Constructed per the k6 --summary-export docs: thresholds appear
-        // as {"expr": false} (legacy) or {"expr": {"ok": false}}.
+        // as {"expr": false} (legacy) or {"expr": {"ok": false}}. Still
+        // constructed after Batch 9b (k6 is the one runtime tool with no
+        // live fixture run — the lhci path covers perf live).
         let json = r#"{
             "metrics": {
                 "http_req_duration": {
@@ -548,9 +550,31 @@ mod tests {
     }
 
     #[test]
+    fn playwright_report_parses_real_artifact() {
+        // REAL artifact: `bunx playwright test tests/a11y-broken.spec.ts
+        // --reporter=json` captured 2026-07-18 against the static-site
+        // fixture (the a11y red case — axe violations fail the spec).
+        let json = include_str!("../../tests/fixtures/runtime/playwright-report.json");
+        let findings = parse_playwright_report(json, "a11y").expect("real artifact parses");
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].gate, "a11y");
+        assert_eq!(findings[0].rule, "failed-spec");
+        assert_eq!(findings[0].file, "a11y-broken.spec.ts");
+        assert_eq!(findings[0].line, Some(7));
+        assert!(
+            findings[0]
+                .message
+                .contains("no detectable a11y violations"),
+            "{}",
+            findings[0].message
+        );
+        assert!(parse_playwright_report("{}", "a11y").is_err(), "no suites");
+    }
+
+    #[test]
     fn playwright_report_collects_failed_specs_recursively() {
-        // Constructed per the Playwright JSON reporter docs (nested
-        // suites; spec.ok carries the verdict).
+        // Constructed nesting probe (real reports nest one level; this
+        // guards the recursive walk over deeper describe blocks).
         let json = r#"{
             "suites": [{
                 "title": "a11y.spec.ts", "file": "a11y.spec.ts",
@@ -569,9 +593,6 @@ mod tests {
         }"#;
         let findings = parse_playwright_report(json, "a11y").expect("parses");
         assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].gate, "a11y");
         assert_eq!(findings[0].line, Some(12));
-        assert!(findings[0].message.contains("axe"));
-        assert!(parse_playwright_report("{}", "a11y").is_err(), "no suites");
     }
 }

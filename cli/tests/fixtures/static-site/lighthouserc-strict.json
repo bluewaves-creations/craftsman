@@ -1,0 +1,13 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": "site",
+      "numberOfRuns": 1
+    },
+    "assert": {
+      "assertions": {
+        "total-byte-weight": ["error", { "maxNumericValue": 1 }]
+      }
+    }
+  }
+}

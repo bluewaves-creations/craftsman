@@ -11,3 +11,6 @@ cli/tests/fixtures/*/.coverage
 cli/tests/fixtures/*/.craftsman/
 cli/tests/fixtures/*/node_modules/
 __pycache__/
+cli/tests/fixtures/*/test-results/
+cli/tests/fixtures/*/.lighthouseci/
+cli/tests/fixtures/*/.stryker-tmp/

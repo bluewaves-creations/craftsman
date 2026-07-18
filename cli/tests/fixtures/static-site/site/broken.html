@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- The seeded-issue variant: no lang attribute, an image without alt,
+     and low-contrast text — each an axe-detectable violation. Also the
+     visual red case: same baseline name, different pixels. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Craftsman Static Site Fixture (broken variant)</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Georgia, serif;
+        background: #e8e8e8;
+        color: #b9b9b9;
+      }
+      main {
+        max-width: 36rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The workshop ledger</h1>
+      <p>Low-contrast prose that an accessibility audit must flag.</p>
+      <img
+        src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+        width="32"
+        height="32"
+      />
+    </main>
+  </body>
+</html>
