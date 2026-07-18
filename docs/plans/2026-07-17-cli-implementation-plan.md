@@ -230,7 +230,7 @@ Success: craftsman verify exits 0 with the merged update scenarios AND CI green 
 
 *(status 2026-07-18: the recover draft is COMPLETE — SPEC.recover.md, 604 lines: ~85 behaviors inventoried, 23 already covered by the existing 35 scenarios, 52 proposed scenarios each citing a passing test or one of 13 executed CLI observations, 9 unpinned behaviors registered as GAP-R01..R09 and routed to Batch 12. AWAITING HUMAN APPROVAL — wiring does not start before it.)*
 
-Scenarios: (in SPEC.recover.md until approval + boundary merge — 52 recovered scenarios, drafted)
+Scenarios: (merged into SPEC.md 2026-07-18 — all 52 recovered scenarios, under the "Current behavior (recovered)" comment banner)
 
 Tasks:
 - Human reviews SPEC.recover.md: approve whole, amend, or trim — cuts are cheap now, expensive after wiring
@@ -239,6 +239,8 @@ Tasks:
 - Delete SPEC.recover.md once merged; its gap register survives as Batch 12
 
 Success: craftsman verify exits 0 with all merged recovered scenarios; spec lint clean; plan lint clean
+
+*(Boundary close-out 2026-07-18 — approved by the human and wired the same day, success line MET: all 52 scenarios merged in five verify-green sub-steps (ee55601 surface/init/adopt/session · 20b0b24 setup/spec-engine/plan · beb30bf docs/ledger · 479a746 gate-modes/health/security/doctor · 9e5c4ae verify/impact/codegen/mutate/runtime); full verify 101 green with the two @requires-network scenarios visible-unknown; spec lint and plan lint clean; SPEC.recover.md deleted (it was an untracked draft — the single writer never carried it). Wiring corrections worth recording: the hono llms.txt citation proved link classification, not page caching — the live scenario syncs the cucumber-rs book SUMMARY.md instead; three environment-bound scenarios (swift assertion, xcodebuild trio, playwright visual/a11y ×2 sharing one tag) gained probe-gated @requires-swift/@requires-xcode/@requires-chromium tags mirroring the cargo tests' loud-skip discipline, each proven live on this machine before commit; the ledger fixtures scrub the previous run's staged file so full re-runs stay repeatable.)*
 
 ## Batch 12 — Gap closure (GAP-R01..R09, test-first)
 
