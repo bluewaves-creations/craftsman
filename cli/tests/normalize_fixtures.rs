@@ -26,15 +26,14 @@ const PASSING: &str = "Add an item to the list";
 const FAILING: &str = "Adding one item yields two items";
 const UNDEFINED: &str = "Remove an item from the list";
 
-#[test]
-fn messages_ndjson_from_cucumber_js() {
-    let r = parse_messages_ndjson(&fixture("msgs.ndjson")).expect("fixture must normalize");
+/// The shared "Todo list" fixture shape: pass/fail/undefined triple, one
+/// feature name, and the failing scenario's message containing `needle`.
+fn assert_todo_triple(r: &[ScenarioResult], needle: &str) {
     assert_eq!(
-        triple(&r),
+        triple(r),
         vec![
             (PASSING, Status::Passed),
             (FAILING, Status::Failed),
-            // cucumber-js reports the unimplemented step as UNDEFINED outright.
             (UNDEFINED, Status::Undefined),
         ]
     );
@@ -43,8 +42,15 @@ fn messages_ndjson_from_cucumber_js() {
         r[1].failure
             .as_deref()
             .expect("failure message")
-            .contains("1 !== 2")
+            .contains(needle)
     );
+}
+
+#[test]
+fn messages_ndjson_from_cucumber_js() {
+    let r = parse_messages_ndjson(&fixture("msgs.ndjson")).expect("fixture must normalize");
+    // cucumber-js reports the unimplemented step as UNDEFINED outright.
+    assert_todo_triple(&r, "1 !== 2");
 }
 
 #[test]
@@ -86,21 +92,7 @@ fn cucumber_json_from_cucumber_rs() {
     // "skipped" status maps to UNDEFINED under the CucumberRs dialect.
     let r = parse_cucumber_json(&fixture("rust.json"), CucumberJsonDialect::CucumberRs)
         .expect("fixture must normalize");
-    assert_eq!(
-        triple(&r),
-        vec![
-            (PASSING, Status::Passed),
-            (FAILING, Status::Failed),
-            (UNDEFINED, Status::Undefined),
-        ]
-    );
-    assert!(r.iter().all(|x| x.feature == "Todo list"));
-    assert!(
-        r[1].failure
-            .as_deref()
-            .expect("failure message")
-            .contains("Step panicked")
-    );
+    assert_todo_triple(&r, "Step panicked");
 }
 
 #[test]
@@ -130,24 +122,10 @@ fn junit_from_pytest_bdd() {
 fn junit_from_cucumber_rs() {
     let r = parse_junit(&fixture("rust-junit.xml"), JunitDialect::CucumberRs)
         .expect("fixture must normalize");
-    assert_eq!(
-        triple(&r),
-        vec![
-            (PASSING, Status::Passed),
-            // cucumber-rs reports assert failures as `Step Panicked`.
-            (FAILING, Status::Failed),
-            // cucumber-rs emits <skipped/> for the unmatched step; only the
-            // `?  <step>` marker in system-out distinguishes it → UNDEFINED.
-            (UNDEFINED, Status::Undefined),
-        ]
-    );
-    assert!(r.iter().all(|x| x.feature == "Todo list"));
-    assert!(
-        r[1].failure
-            .as_deref()
-            .expect("failure message")
-            .contains("Step panicked")
-    );
+    // cucumber-rs reports assert failures as `Step Panicked` and emits
+    // <skipped/> for the unmatched step; only the `?  <step>` marker in
+    // system-out distinguishes it → UNDEFINED.
+    assert_todo_triple(&r, "Step panicked");
 }
 
 #[test]
