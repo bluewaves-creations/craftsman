@@ -93,15 +93,28 @@ pub const CLAUDE_SETTINGS_JSON: &str = r#"{
 }
 "#;
 
-/// `.cursor/craftsman-hooks.json.template` — deliberately a `.template`,
-/// not a live config: Cursor's hooks JSON shape could not be verified from
-/// an offline docs source when this was authored, and craftsman never
-/// invents a schema silently. The `_note` says exactly that.
-pub const CURSOR_HOOKS_TEMPLATE: &str = r#"{
-  "_note": "TEMPLATE, not live config. Cursor's hooks JSON shape was not verifiable from an offline docs source when craftsman generated this file, so it ships inert. Intent to port: run `craftsman check-all --changed` before any git commit and when the agent finishes, blocking on non-zero exit. Verify the current schema at https://cursor.com/docs, adapt, and rename/move this file accordingly. Until then, enforcement holds structurally: `craftsman commit` refuses while gates are red, and CI runs `craftsman check-all`.",
+/// `.cursor/hooks.json` — LIVE config (Batch 9c; formerly an inert
+/// `.template` because the schema could not be verified offline).
+///
+/// Schema verified 2026-07-18 against the official docs,
+/// <https://cursor.com/docs/agent/hooks>: project-level file
+/// `.cursor/hooks.json`; top-level keys `version` (1) and `hooks` (event →
+/// array of hook objects with a required `command` string plus optional
+/// `timeout` in seconds); a hook blocking the action exits 2 (equivalent
+/// to `permission: "deny"`); other non-zero codes fail open. Hooks
+/// shipped in Cursor 1.7 (beta, 2025-09-29) and were extended to the
+/// agent-loop events (`stop` among them) by 3.11 (2026-07-10). The `stop`
+/// hook mirrors the Claude Code `Stop` hook above: red gates block the
+/// agent from finishing.
+pub const CURSOR_HOOKS_JSON: &str = r#"{
+  "version": 1,
   "hooks": {
-    "before-commit": "craftsman check-all --changed",
-    "on-stop": "craftsman check-all --changed"
+    "stop": [
+      {
+        "command": "sh -c 'craftsman check-all --changed >&2 || { echo \"craftsman gates are red — fix before stopping\" >&2; exit 2; }'",
+        "timeout": 600
+      }
+    ]
   }
 }
 "#;

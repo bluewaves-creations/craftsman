@@ -100,8 +100,8 @@ fn targets(request: &Request, version: &str) -> Vec<(String, String)> {
             templates::CLAUDE_SETTINGS_JSON.to_owned(),
         ),
         (
-            ".cursor/craftsman-hooks.json.template".to_owned(),
-            templates::CURSOR_HOOKS_TEMPLATE.to_owned(),
+            ".cursor/hooks.json".to_owned(),
+            templates::CURSOR_HOOKS_JSON.to_owned(),
         ),
     ]
 }

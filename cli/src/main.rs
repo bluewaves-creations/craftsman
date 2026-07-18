@@ -33,7 +33,7 @@ enum Command {
     /// header — content is the human's), a walking-skeleton SPEC.md,
     /// .craftsman/ dirs, .gitignore entries, a CLAUDE.md → AGENTS.md
     /// symlink, and harness hook templates (.claude/settings.json wired
-    /// to `craftsman check-all --changed`; a .cursor template).
+    /// to `craftsman check-all --changed`; .cursor/hooks.json blocking on red gates at stop).
     ///
     /// Exit codes: 0 scaffolded · 2 usage error · 3 not a git repo,
     /// unknown stack, or existing files without --force (listed first —
