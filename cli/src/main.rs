@@ -310,9 +310,11 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// The a11y gate: playwright test filtered to [a11y] test-glob
-    /// (axe-based specs are user-land). Refuses with exit 3 when [a11y]
-    /// is absent.
+    /// The a11y gate — web path: playwright test filtered to [a11y]
+    /// test-glob (axe-based specs are user-land); apple path: xcodebuild
+    /// test -only-testing:[a11y] ui-test-target running your UI-test
+    /// accessibility audits (template via `spec gen --a11y-stub`).
+    /// Refuses with exit 3 when [a11y] is absent.
     A11y {
         /// Accepted for symmetry; the configured suite always runs full
         #[arg(long)]
@@ -535,6 +537,11 @@ enum SpecCommand {
         /// Emit the written/kept file list as JSON on stdout
         #[arg(long)]
         json: bool,
+        /// Emit only the write-once UI-test accessibility-audit template
+        /// (AccessibilityAuditTests.swift.template at the project root) for
+        /// the Apple a11y path ([a11y] scheme + ui-test-target)
+        #[arg(long)]
+        a11y_stub: bool,
     },
 }
 
@@ -609,7 +616,7 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::Spec { command } => match command {
             SpecCommand::Status { json } => spec_status(*json),
             SpecCommand::Lint { json } => spec_lint(*json),
-            SpecCommand::Gen { json } => spec_gen(*json),
+            SpecCommand::Gen { json, a11y_stub } => spec_gen(*json, *a11y_stub),
         },
         Command::Plan { command } => match command {
             PlanCommand::Lint { json } => plan_lint(*json),
@@ -1573,10 +1580,21 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
     })
 }
 
-fn spec_gen(json: bool) -> anyhow::Result<i32> {
+fn spec_gen(json: bool, a11y_stub: bool) -> anyhow::Result<i32> {
     use craftsman::codegen::{self, Outcome};
 
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    if a11y_stub {
+        let files = codegen::a11y_stub(&cwd)?;
+        for f in &files {
+            eprintln!("{:>8}  {}", f.action, f.path.display());
+        }
+        if json {
+            let doc = serde_json::json!({ "generated": true, "files": files });
+            println!("{doc:#}");
+        }
+        return Ok(EXIT_PASS);
+    }
     let (code, files): (i32, Vec<codegen::FileReport>) = match codegen::run(&cwd)? {
         Outcome::LintErrors { errors } => {
             eprintln!(

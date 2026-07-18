@@ -37,6 +37,12 @@ pub enum ConfigError {
          baselines never apply to the spec"
     )]
     VerifyNotStrict { found: GateMode },
+    #[error(
+        "[a11y] must configure exactly one path — test-glob (web: \
+         Playwright/axe) OR scheme + ui-test-target (apple: XCUITest \
+         audit) — {detail}"
+    )]
+    A11yConfig { detail: &'static str },
 }
 
 /// Per-gate enforcement mode. Absent gate = off.
@@ -167,12 +173,35 @@ pub struct Perf {
     pub k6_script: Option<String>,
 }
 
-/// `[a11y]` — Playwright test filter for axe-based specs (user-land specs).
+/// `[a11y]` — exactly one path (validated).
+///
+/// The web path (`test-glob` → Playwright running user-land axe specs) or
+/// the Apple path (`scheme` + `ui-test-target` → xcodebuild running a
+/// user-land `XCUITest` that calls `performAccessibilityAudit()`;
+/// `spec gen --a11y-stub` emits the template).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct A11y {
-    /// Glob/filter passed to `playwright test` selecting the a11y specs.
-    pub test_glob: String,
+    /// Web path: glob/filter passed to `playwright test` selecting the
+    /// a11y specs.
+    pub test_glob: Option<String>,
+    /// Apple path: the xcodebuild scheme to test.
+    pub scheme: Option<String>,
+    /// Apple path: the UI-test target holding the audit tests
+    /// (`-only-testing:<target>`).
+    pub ui_test_target: Option<String>,
+    /// Apple path: xcodebuild `-destination`; defaults to
+    /// `platform=macOS` (same rule as `[verify.swift]`).
+    pub destination: Option<String>,
+}
+
+impl A11y {
+    /// Whether any Apple-path key is set (used by validation — the two
+    /// paths are mutually exclusive).
+    #[must_use]
+    pub const fn has_apple_keys(&self) -> bool {
+        self.scheme.is_some() || self.ui_test_target.is_some() || self.destination.is_some()
+    }
 }
 
 /// `[visual]` — Playwright test filter for screenshot-comparison specs.
@@ -438,9 +467,28 @@ impl Config {
 
     const fn validate(&self) -> Result<(), ConfigError> {
         match self.gates.verify {
-            Some(GateMode::Strict) | None => Ok(()),
-            Some(found) => Err(ConfigError::VerifyNotStrict { found }),
+            Some(GateMode::Strict) | None => {}
+            Some(found) => return Err(ConfigError::VerifyNotStrict { found }),
         }
+        if let Some(a11y) = &self.a11y {
+            return Self::validate_a11y(a11y);
+        }
+        Ok(())
+    }
+
+    /// The `[a11y]` two-path rule: web XOR apple, each complete.
+    const fn validate_a11y(a11y: &A11y) -> Result<(), ConfigError> {
+        let detail = match (
+            a11y.test_glob.is_some(),
+            a11y.has_apple_keys(),
+            a11y.scheme.is_some() && a11y.ui_test_target.is_some(),
+        ) {
+            (true, true, _) => "both paths are set",
+            (false, false, _) => "the section is empty",
+            (false, true, false) => "the apple path needs both scheme and ui-test-target",
+            _ => return Ok(()),
+        };
+        Err(ConfigError::A11yConfig { detail })
     }
 }
 
@@ -547,7 +595,7 @@ mod tests {
             Some("lighthouserc.json")
         );
         assert_eq!(
-            c.a11y.as_ref().map(|a| a.test_glob.as_str()),
+            c.a11y.as_ref().and_then(|a| a.test_glob.as_deref()),
             Some("e2e/a11y")
         );
         assert_eq!(
@@ -586,13 +634,39 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_health_key_and_a11y_without_glob() {
+    fn rejects_unknown_health_key_and_an_empty_a11y_section() {
         let err = parse(&format!("{MINIMAL}\n[health]\nmax-vibes = 3\n"))
             .expect_err("unknown health key must be rejected");
         assert!(matches!(err, ConfigError::Parse { .. }), "{err}");
-        let err = parse(&format!("{MINIMAL}\n[a11y]\n"))
-            .expect_err("[a11y] without test-glob must be rejected");
-        assert!(matches!(err, ConfigError::Parse { .. }), "{err}");
+        let err =
+            parse(&format!("{MINIMAL}\n[a11y]\n")).expect_err("an empty [a11y] must be rejected");
+        assert!(matches!(err, ConfigError::A11yConfig { .. }), "{err}");
+    }
+
+    #[test]
+    fn a11y_paths_are_mutually_exclusive_and_complete() {
+        // The apple pair alone is valid (destination optional).
+        let c = parse(&format!(
+            "{MINIMAL}\n[a11y]\nscheme = \"App\"\nui-test-target = \"AppUITests\"\n"
+        ))
+        .expect("apple path parses");
+        let a11y = c.a11y.expect("[a11y] present");
+        assert_eq!(a11y.scheme.as_deref(), Some("App"));
+        assert_eq!(a11y.ui_test_target.as_deref(), Some("AppUITests"));
+        assert!(a11y.destination.is_none());
+
+        // Both paths set → rejected.
+        let err = parse(&format!(
+            "{MINIMAL}\n[a11y]\ntest-glob = \"e2e/a11y\"\nscheme = \"App\"\n\
+             ui-test-target = \"AppUITests\"\n"
+        ))
+        .expect_err("both paths must be rejected");
+        assert!(matches!(err, ConfigError::A11yConfig { .. }), "{err}");
+
+        // An incomplete apple pair → rejected.
+        let err = parse(&format!("{MINIMAL}\n[a11y]\nscheme = \"App\"\n"))
+            .expect_err("scheme without ui-test-target must be rejected");
+        assert!(matches!(err, ConfigError::A11yConfig { .. }), "{err}");
     }
 
     #[test]

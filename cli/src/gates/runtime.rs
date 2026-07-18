@@ -7,9 +7,13 @@
 //!   (failed assertions from `.lighthouseci/assertion-results.json`), OR
 //!   `[perf] k6-script` → the pinned k6 binary with `--summary-export`
 //!   (crossed thresholds from the summary metrics).
-//! - **a11y** — `bunx playwright test <[a11y] test-glob>` with the JSON
-//!   reporter; axe-based specs are user-land.
-//! - **visual** — same runner, `[visual] test-glob` (screenshot specs).
+//! - **a11y** — web path: `bunx playwright test <[a11y] test-glob>` with
+//!   the JSON reporter (axe-based specs are user-land); apple path
+//!   (`[a11y] scheme` + `ui-test-target`, Batch 9a): `xcodebuild test
+//!   -only-testing:<target>` running user-land `XCUITest` audits, failed
+//!   tests read from the result bundle via the verify xcodebuild adapter.
+//! - **visual** — same runner as web a11y, `[visual] test-glob`
+//!   (screenshot specs).
 //!
 //! A gate whose config section is absent **refuses** with a clear message
 //! (exit 3: "not configured — see --help") — an enabled-but-unconfigured
@@ -53,12 +57,20 @@ pub fn run(
     let (findings, tool): (Vec<Finding>, &'static str) = match gate {
         "perf" => run_perf(root, config)?,
         "a11y" => {
-            let glob = config
-                .a11y
-                .as_ref()
-                .map(|c| c.test_glob.clone())
-                .ok_or_else(|| not_configured("a11y", "test-glob"))?;
-            (run_playwright(root, config, "a11y", &glob)?, "playwright")
+            let a11y = config.a11y.as_ref().ok_or_else(|| {
+                not_configured("a11y", "test-glob (web) or scheme + ui-test-target (apple)")
+            })?;
+            match (&a11y.test_glob, &a11y.scheme, &a11y.ui_test_target) {
+                (Some(glob), None, None) => {
+                    (run_playwright(root, config, "a11y", glob)?, "playwright")
+                }
+                (None, Some(scheme), Some(target)) => (
+                    run_xcuitest_audit(root, scheme, target, a11y.destination.as_deref())?,
+                    "xcodebuild",
+                ),
+                // Config validation enforces web XOR apple, each complete.
+                _ => unreachable!("[a11y] validation admits exactly one complete path"),
+            }
         }
         "visual" => {
             let glob = config
@@ -258,6 +270,76 @@ fn parse_k6_summary(text: &str, script: &str) -> Result<Vec<Finding>, GateError>
     Ok(findings)
 }
 
+// ----------------------------------------------------- xcodebuild (a11y)
+
+/// The Apple a11y path: `xcodebuild test -scheme <s>
+/// -only-testing:<ui-test-target>` — the target's user-land `XCUITest`s
+/// call `performAccessibilityAudit()` (`spec gen --a11y-stub` emits the
+/// template); any audit finding fails its test, and failed tests in the
+/// result bundle become gate findings. Reuses the verify xcodebuild
+/// adapter (a bare target name is a valid `-only-testing:` selector).
+fn run_xcuitest_audit(
+    root: &Path,
+    scheme: &str,
+    target: &str,
+    destination: Option<&str>,
+) -> Result<Vec<Finding>, GateError> {
+    let artifacts = root.join(".craftsman").join("cache").join("a11y");
+    eprintln!("gate a11y: xcodebuild test -scheme {scheme} -only-testing:{target} …");
+    let results = crate::verify::adapters::xcodebuild::run(
+        root,
+        &artifacts,
+        scheme,
+        destination,
+        Some(&[target.to_owned()]),
+    )
+    .map_err(|e| GateError::ToolFailed {
+        tool: "xcodebuild".to_owned(),
+        code: "-".to_owned(),
+        output: e.to_string(),
+    })?;
+    // An -only-testing selector matching nothing exits 0 with a test-less
+    // bundle — a misnamed ui-test-target must never be a silent green.
+    if results.is_empty() {
+        return Err(GateError::ToolFailed {
+            tool: "xcodebuild".to_owned(),
+            code: "0".to_owned(),
+            output: format!(
+                "ui-test-target {target:?} matched no tests in scheme \
+                 {scheme:?} — check [a11y] ui-test-target"
+            ),
+        });
+    }
+    Ok(audit_findings(&results, target))
+}
+
+/// Failed audit tests → findings (test name + failure message).
+fn audit_findings(
+    results: &[crate::verify::normalize::ScenarioResult],
+    target: &str,
+) -> Vec<Finding> {
+    use crate::verify::normalize::Status;
+    results
+        .iter()
+        .filter(|r| !matches!(r.status, Status::Passed | Status::Skipped))
+        .map(|r| Finding {
+            gate: "a11y",
+            tool: "xcodebuild",
+            rule: "accessibility-audit".to_owned(),
+            file: format!("{target}/{}", r.scenario),
+            line: None,
+            message: format!(
+                "audit test failed: {}: {}",
+                r.scenario,
+                r.failure
+                    .as_deref()
+                    .unwrap_or("no failure detail in bundle")
+            ),
+            severity: Severity::High,
+        })
+        .collect()
+}
+
 // -------------------------------------------------------------- playwright
 
 fn run_playwright(
@@ -373,6 +455,40 @@ mod tests {
         let err =
             run(Path::new("."), &config, "perf", None, GateMode::Strict).expect_err("must refuse");
         assert!(matches!(err, GateError::NotConfigured { .. }), "{err}");
+    }
+
+    #[test]
+    fn audit_findings_carry_test_name_and_failure() {
+        use crate::verify::normalize::{ScenarioResult, Status};
+        let result = |scenario: &str, status: Status, failure: Option<&str>| ScenarioResult {
+            feature: "App".to_owned(),
+            scenario: scenario.to_owned(),
+            status,
+            duration_ms: Some(3),
+            failure: failure.map(str::to_owned),
+        };
+        // Shapes as parsed from the task-1 bundle format (the a11y path
+        // reads the same xcresult tests JSON via the xcodebuild adapter).
+        let results = vec![
+            result("testAccessibilityAudit", Status::Passed, None),
+            result(
+                "testContrastAudit",
+                Status::Failed,
+                Some("Element has insufficient contrast"),
+            ),
+            result("testSkippedAudit", Status::Skipped, Some("XCTSkip")),
+        ];
+        let findings = audit_findings(&results, "AppUITests");
+        assert_eq!(findings.len(), 1, "only failed tests are findings");
+        assert_eq!(findings[0].gate, "a11y");
+        assert_eq!(findings[0].rule, "accessibility-audit");
+        assert_eq!(findings[0].file, "AppUITests/testContrastAudit");
+        assert!(
+            findings[0].message.contains("insufficient contrast"),
+            "{}",
+            findings[0].message
+        );
+        assert_eq!(findings[0].severity, Severity::High);
     }
 
     #[test]

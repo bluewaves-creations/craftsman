@@ -306,6 +306,36 @@ fn gen_regenerates_ours_and_never_touches_theirs() {
     );
 }
 
+#[test]
+fn a11y_stub_is_write_once_and_calls_the_audit() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let dir = tmp.path();
+    write(
+        &dir.join("craftsman.toml"),
+        "[project]\nname = \"a11y-stub\"\nstacks = [\"swift\"]\n",
+    );
+    let files = codegen::a11y_stub(dir).expect("stub emits");
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].action, "created");
+    let path = dir.join(codegen::A11Y_STUB_FILE);
+    let text = std::fs::read_to_string(&path).expect("read stub");
+    assert!(
+        text.contains("try app.performAccessibilityAudit()"),
+        "{text}"
+    );
+    assert!(text.contains("// step: customize audit types"), "{text}");
+    assert!(text.contains("import XCTest"), "UI tests are XCTest-side");
+
+    // Theirs once created: a second gen keeps the hand-edited file.
+    std::fs::write(&path, "// my tuned audit\n").expect("write");
+    let files = codegen::a11y_stub(dir).expect("stub emits");
+    assert_eq!(files[0].action, "kept");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "// my tuned audit\n"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // plumbing
 // ---------------------------------------------------------------------------
