@@ -1,19 +1,28 @@
-//! The command-surface contract sweep (Batch 8 audit): every subcommand
-//! must have `--help` (exit-code documentation where a verdict exists),
-//! answer a bad flag with exit 2, refuse a missing config with exit 3,
-//! and emit parseable JSON on its happy path.
+//! The command-surface contract sweep (Batch 8 audit, completed in Batch
+//! 9b): every subcommand must have `--help` (exit-code documentation
+//! where a verdict exists), answer a bad flag with exit 2, refuse a
+//! missing config with exit 3, and emit parseable JSON on its happy path.
 //!
-//! Deliberately excluded from the JSON happy-path drive (each covered
-//! elsewhere or gated on network/heavy tools): `verify`, `check-all`,
-//! `commit`, `doctor` (compile the cucumber fixture — proven by
-//! tests/spec.rs and tests/doctor.rs), `lint` (real cargo fmt/clippy —
-//! proven by the SPEC gate scenarios), `security`/`mutate` (hermetic tool
-//! installs need the network on first use), `docs sync` (network), and
-//! `perf`/`a11y`/`visual` (their documented unconfigured behavior — exit
-//! 3 — is asserted instead).
+//! JSON happy-path coverage by venue — every command in the surface is
+//! now swept:
+//! - here, offline: spec/plan/gate/docs add|status|search|get, arch,
+//!   health, extract, adr, adopt, init, setup, update;
+//! - `contract_offline.rs`: `security` + `mutate` (against pre-resolved
+//!   hermetic tools — a loud skip when `~/.craftsman/tools` lacks them,
+//!   so a fresh machine never downloads inside the sweep) and
+//!   `docs sync` via a local `file` source (no network at all);
+//! - elsewhere: `verify` + `commit` + `check-all` + `doctor` (compile
+//!   the cucumber fixture — tests/spec.rs, tests/doctor.rs), `lint`
+//!   (real cargo fmt/clippy — the SPEC gate scenarios), `mutate`
+//!   score paths (tests/mutate.rs, live py/ts), `perf`/`a11y`/`visual`
+//!   (`tests/runtime_gates.rs`, live red+green; their unconfigured exit-3
+//!   contract is asserted here).
 
-use std::path::Path;
-use std::process::{Command, Output};
+mod util;
+
+use std::process::Command;
+
+use util::{assert_json, combined, craftsman, fixture_project};
 
 /// The full surface: every subcommand as an argv prefix, flagged `true`
 /// when its exit code is a verdict contract (then `--help` must document
@@ -51,23 +60,6 @@ const SURFACE: &[(&[&str], bool)] = &[
     (&["adr", "index"], false),
     (&["adr", "stale"], false),
 ];
-
-fn craftsman(dir: &Path, args: &[&str], home: Option<&Path>) -> Output {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_craftsman"));
-    cmd.args(args).current_dir(dir);
-    if let Some(home) = home {
-        cmd.env("HOME", home);
-    }
-    cmd.output().expect("spawn craftsman")
-}
-
-fn combined(output: &Output) -> String {
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    )
-}
 
 #[test]
 fn every_command_has_help() {
@@ -204,83 +196,6 @@ fn unconfigured_runtime_gates_refuse_with_exit_3() {
             combined(&out)
         );
     }
-}
-
-/// A committed fixture project every offline happy path can run against.
-fn fixture_project() -> tempfile::TempDir {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let dir = tmp.path();
-    let write = |rel: &str, content: &str| {
-        let path = dir.join(rel);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).expect("mkdirs");
-        }
-        std::fs::write(&path, content).unwrap_or_else(|e| panic!("write {rel}: {e}"));
-    };
-    write(
-        "craftsman.toml",
-        "[project]\nname = \"contract\"\nstacks = [\"rust\"]\n\n[gates]\nverify = \"strict\"\n\n[arch]\ndeny = [\"src/a -> src/b\"]\n",
-    );
-    write(
-        "SPEC.md",
-        "Feature: Contract fixture\n\n  Scenario: First behavior\n\n  Scenario: Second behavior\n",
-    );
-    write(
-        "PLAN.md",
-        "# Plan\n\n## Batch 1\n\nScenarios:\n- First behavior\n- Second behavior\n",
-    );
-    write(
-        "decisions/ADR-001-example.md",
-        "# ADR-001: Example decision\n\nStatus: accepted\n\nBody.\n",
-    );
-    write("src/lib.rs", "pub fn f(x: i32) -> i32 {\n    x + 1\n}\n");
-    write(
-        ".craftsman/docs/manifest.json",
-        "{\n  \"libraries\": {\n    \"demo\": {\n      \"source\": \"llms-txt\",\n      \"urls\": [\"https://example.dev/llms.txt\"],\n      \"version\": \"1.0.0\"\n    }\n  }\n}\n",
-    );
-    write(
-        ".craftsman/docs/demo@1.0.0/pages/intro.md",
-        "# Intro\n\nStreaming responses are the core feature.\n",
-    );
-    for git_args in [
-        &["init", "--quiet"][..],
-        &["add", "-A"][..],
-        &[
-            "-c",
-            "user.name=fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "--quiet",
-            "-m",
-            "init",
-        ][..],
-    ] {
-        let status = Command::new("git")
-            .args(git_args)
-            .current_dir(dir)
-            .status()
-            .expect("spawn git");
-        assert!(status.success(), "git {git_args:?} failed");
-    }
-    tmp
-}
-
-/// Assert `args` exits within `allowed` and stdout parses as JSON.
-fn assert_json(dir: &Path, args: &[&str], home: Option<&Path>, allowed: &[i32]) {
-    let out = craftsman(dir, args, home);
-    let code = out.status.code().expect("exit code");
-    assert!(
-        allowed.contains(&code),
-        "{args:?} exited {code}, allowed {allowed:?}:\n{}",
-        combined(&out)
-    );
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
-    assert!(
-        parsed.is_ok(),
-        "{args:?} stdout is not valid JSON:\n{stdout}"
-    );
 }
 
 #[test]
