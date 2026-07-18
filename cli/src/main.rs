@@ -29,7 +29,7 @@ const EXIT_EMPTY_SELECTION: i32 = 4;
 /// 3 orchestrator error · 4 empty selection.
 /// Every command supports --json (JSON to stdout, human progress to stderr).
 #[derive(Parser)]
-#[command(name = "craftsman", version, about)]
+#[command(name = "craftsman", version = craftsman_version(), about)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -37,6 +37,98 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Scaffold a new craftsman project — non-interactive: flags in,
+    /// files out (the craftsman-init skill drives the interview).
+    ///
+    /// Writes craftsman.toml (verify + lint strict, security baseline),
+    /// an AGENTS.md skeleton (headings + the Documentation Sources table
+    /// header — content is the human's), a walking-skeleton SPEC.md,
+    /// .craftsman/ dirs, .gitignore entries, a CLAUDE.md → AGENTS.md
+    /// symlink, and harness hook templates (.claude/settings.json wired
+    /// to `craftsman check-all --changed`; a .cursor template).
+    ///
+    /// Exit codes: 0 scaffolded · 2 usage error · 3 not a git repo,
+    /// unknown stack, or existing files without --force (listed first —
+    /// nothing is written while any conflict stands).
+    Init {
+        /// Project name for [project] name
+        #[arg(long)]
+        name: String,
+        /// Stack (repeatable): swift-apple | swift | python |
+        /// typescript | rust | bash
+        #[arg(long = "stack", required = true)]
+        stack: Vec<String>,
+        /// Spec file name
+        #[arg(long, default_value = "SPEC.md")]
+        spec: String,
+        /// Overwrite existing scaffold files (still listed in the report)
+        #[arg(long)]
+        force: bool,
+        /// Emit the scaffold report as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Brownfield adoption — the five-phase state machine (observe →
+    /// ledger → hold-the-line → recover → steady-state), resumable via
+    /// .craftsman/adoption.toml (CLI-written, committed).
+    ///
+    /// Phase 1 start writes the gates-off craftsman.toml + ADR-000
+    /// template; phase 2 start records a baseline for every gate in
+    /// baseline mode. Phases 0, 3, and 4 are skill-driven — the CLI only
+    /// tracks state. Every transition records a timestamp and git HEAD.
+    ///
+    /// Exit codes: 0 recorded/reported · 2 usage error · 3 out-of-order
+    /// phase, unknown phase, or no repo.
+    Adopt {
+        /// Report phase state (the default when no flag is given)
+        #[arg(long)]
+        status: bool,
+        /// Start phase N (0..=4) — refuses while phase N-1 is incomplete
+        #[arg(long, value_name = "N", conflicts_with_all = ["status", "complete_phase"])]
+        start_phase: Option<u8>,
+        /// Record phase N complete
+        #[arg(long, value_name = "N", conflicts_with = "status")]
+        complete_phase: Option<u8>,
+        /// Emit the phase report as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Install the six bundled craftsman-* skills: canonical copies into
+    /// ~/.agents/skills/, then per-agent links via the adapter table
+    /// (Claude Code symlinks; Codex/Cursor/Gemini/opencode/Goose/Pi read
+    /// the canonical dir natively).
+    ///
+    /// Attribution-checked, never destructive: setup only replaces
+    /// symlinks resolving into the canonical dir or trees it can prove it
+    /// wrote (.craftsman-setup sentinel with the tree's sha256). Foreign
+    /// content is reported and left; --force overrides, still listing.
+    ///
+    /// Exit codes: 0 done (refusals are report rows) · 2 usage error ·
+    /// 3 no HOME / IO failure.
+    Setup {
+        /// Remove installed skills — mirror of install, same proofs
+        #[arg(long, conflicts_with = "status")]
+        remove: bool,
+        /// Report what is installed where (no writes)
+        #[arg(long)]
+        status: bool,
+        /// Replace/remove entries not attributable to setup (still listed)
+        #[arg(long, conflicts_with = "status")]
+        force: bool,
+        /// Emit the report as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Team-local update: report this binary's version and refresh the
+    /// installed skills from its embedded payload (`craftsman setup`).
+    ///
+    /// Honest scope: real self-update does not exist yet — reinstall via
+    /// install.sh (GitHub Release) or `cargo install --path cli`.
+    Update {
+        /// Emit the report as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
     /// SPEC.md engine: scenario inventory and authoring checks
     Spec {
         #[command(subcommand)]
@@ -490,6 +582,10 @@ fn main() {
 
 fn run(cli: &Cli) -> anyhow::Result<i32> {
     match &cli.command {
+        Command::Init { .. }
+        | Command::Adopt { .. }
+        | Command::Setup { .. }
+        | Command::Update { .. } => run_bootstrap(&cli.command),
         Command::Spec { command } => match command {
             SpecCommand::Status { json } => spec_status(*json),
             SpecCommand::Lint { json } => spec_lint(*json),
@@ -584,6 +680,171 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
             AdrCommand::Stale { json } => adr_stale_cmd(*json),
         },
     }
+}
+
+/// Dispatcher for the Batch 8 bootstrap commands (split from [`run`] to
+/// keep both dispatchers readable).
+fn run_bootstrap(command: &Command) -> anyhow::Result<i32> {
+    match command {
+        Command::Init {
+            name,
+            stack,
+            spec,
+            force,
+            json,
+        } => init_cmd(
+            &craftsman::bootstrap::init::Request {
+                name: name.clone(),
+                stacks: stack.clone(),
+                spec: spec.clone(),
+                force: *force,
+            },
+            *json,
+        ),
+        Command::Adopt {
+            status,
+            start_phase,
+            complete_phase,
+            json,
+        } => adopt_cmd(*status, *start_phase, *complete_phase, *json),
+        Command::Setup {
+            remove,
+            status,
+            force,
+            json,
+        } => {
+            let action = if *status {
+                SetupAction::Status
+            } else if *remove {
+                SetupAction::Remove
+            } else {
+                SetupAction::Install
+            };
+            setup_cmd(&action, *force, *json)
+        }
+        Command::Update { json } => update_cmd(*json),
+        _ => unreachable!("run routes only the four bootstrap commands here"),
+    }
+}
+
+fn init_cmd(request: &craftsman::bootstrap::init::Request, json: bool) -> anyhow::Result<i32> {
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let report = craftsman::bootstrap::init::run(&cwd, request)?;
+    for f in &report.files {
+        eprintln!("{:>12}  {}", f.action, f.path);
+    }
+    eprintln!("init: scaffolded {} in {}", request.name, report.root);
+    for step in &report.next {
+        eprintln!("next: {step}");
+    }
+    if json {
+        println!("{:#}", serde_json::json!(report));
+    }
+    Ok(EXIT_PASS)
+}
+
+fn adopt_cmd(
+    _status: bool,
+    start_phase: Option<u8>,
+    complete_phase: Option<u8>,
+    json: bool,
+) -> anyhow::Result<i32> {
+    use craftsman::bootstrap::adopt;
+
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let report = match (start_phase, complete_phase) {
+        (Some(n), None) => adopt::start_phase(&cwd, n)?,
+        (None, Some(n)) => adopt::complete_phase(&cwd, n)?,
+        _ => adopt::status(&cwd)?,
+    };
+    for action in &report.actions {
+        eprintln!("  {action}");
+    }
+    for (n, label) in adopt::PHASES {
+        let record = report.phases.iter().find(|p| p.phase == n);
+        let (mark, detail) = record.map_or(("todo", String::new()), |r| {
+            r.completed_at.as_ref().map_or_else(
+                || {
+                    (
+                        "now ",
+                        format!("  started {} at {}", r.started_at, r.started_head),
+                    )
+                },
+                |done| ("done", format!("  completed {done}")),
+            )
+        });
+        eprintln!("  {mark}  {n} {label:<14}{detail}");
+    }
+    match report.next_phase {
+        Some(n) => eprintln!("adopt: next phase is {n} — see the craftsman-init adopt gear"),
+        None => eprintln!("adopt: all five phases complete — steady state"),
+    }
+    if json {
+        println!("{:#}", serde_json::json!(report));
+    }
+    Ok(EXIT_PASS)
+}
+
+/// What `craftsman setup` was asked to do.
+enum SetupAction {
+    Install,
+    Remove,
+    Status,
+}
+
+fn setup_cmd(action: &SetupAction, force: bool, json: bool) -> anyhow::Result<i32> {
+    use craftsman::bootstrap::setup;
+
+    let home = setup::home()?;
+    let report = match action {
+        SetupAction::Status => setup::status(&home)?,
+        SetupAction::Remove => setup::remove(&home, force)?,
+        SetupAction::Install => setup::install(&home, force)?,
+    };
+    print_setup_report(&report, json);
+    Ok(EXIT_PASS)
+}
+
+fn print_setup_report(report: &craftsman::bootstrap::setup::Report, json: bool) {
+    for r in &report.rows {
+        eprintln!(
+            "  {:<12} {:<12} {:<22} {}",
+            r.scope, r.action, r.skill, r.detail
+        );
+    }
+    eprintln!(
+        "setup: craftsman {} — canonical skills at {}",
+        report.version, report.canonical_dir
+    );
+    if json {
+        println!("{:#}", serde_json::json!(report));
+    }
+}
+
+fn update_cmd(json: bool) -> anyhow::Result<i32> {
+    use craftsman::bootstrap::setup;
+
+    eprintln!("craftsman {}", craftsman_version());
+    eprintln!(
+        "update: no self-update channel yet (team-local phase) — to update the \
+         binary, download the current GitHub Release via install.sh or run \
+         `cargo install --path cli` from the repo, then re-run `craftsman update`"
+    );
+    eprintln!("update: refreshing installed skills from this binary's embedded payload…");
+    let home = setup::home()?;
+    let report = setup::install(&home, false)?;
+    print_setup_report(&report, json);
+    Ok(EXIT_PASS)
+}
+
+/// Version string incl. build metadata (git sha via build.rs).
+const fn craftsman_version() -> &'static str {
+    concat!(
+        env!("CARGO_PKG_VERSION"),
+        " (",
+        env!("CRAFTSMAN_GIT_SHA"),
+        ")"
+    )
 }
 
 /// Shared command flow for the direct gate invocations.
