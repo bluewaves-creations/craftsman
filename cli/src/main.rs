@@ -230,6 +230,10 @@ enum Command {
     /// Findings at or above [gates] security-threshold (default: high)
     /// block. --changed never narrows the scan (standing risk); the
     /// check-all cache is the fast path.
+    ///
+    /// Exit codes: 0 clean (or no new findings in baseline mode) · 1
+    /// blocking findings · 3 scanner failure (a broken scanner is never
+    /// a green gate).
     Security {
         /// Accepted for gate-surface symmetry; the scan always runs full
         #[arg(long)]
@@ -353,6 +357,9 @@ enum Command {
     ///
     /// The fixture is cached under the system temp dir; the first run
     /// compiles its cucumber harness and may take minutes.
+    ///
+    /// Exit codes: 0 all checks passed · 1 any check failed · 3
+    /// orchestrator error.
     Doctor {
         /// Emit per-check results as JSON on stdout
         #[arg(long)]
@@ -471,6 +478,10 @@ enum DocsCommand {
     Get {
         /// <library>/<page>
         page: String,
+        /// Emit {page, path, text} as JSON on stdout (the markdown still
+        /// prints to stdout only in the human mode)
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -542,15 +553,24 @@ enum GateCommand {
     /// swiftlint and semgrep use their native mechanisms (baseline file /
     /// baseline commit ref); every other tool lands in the unified
     /// fingerprint snapshot at .craftsman/baselines/<gate>.json.
+    ///
+    /// Exit codes: 0 recorded · 2 usage error · 3 unsupported gate or
+    /// tool failure.
     Baseline {
         /// The gate to record (lint | security | health | arch)
         gate: String,
+        /// Emit {gate, count, recorded-at} as JSON on stdout
+        #[arg(long)]
+        json: bool,
     },
     /// Flip a gate to strict in craftsman.toml — only when its baseline
     /// debt is zero (exit 1 with the count otherwise).
     Strict {
         /// The gate to flip
         gate: String,
+        /// Emit {gate, flipped, remaining} as JSON on stdout
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -650,8 +670,8 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::CheckAll { changed, json } => check_all_cmd(*changed, *json),
         Command::Gate { command } => match command {
             GateCommand::Status { json } => gate_status_cmd(*json),
-            GateCommand::Baseline { gate } => gate_baseline_cmd(gate),
-            GateCommand::Strict { gate } => gate_strict_cmd(gate),
+            GateCommand::Baseline { gate, json } => gate_baseline_cmd(gate, *json),
+            GateCommand::Strict { gate, json } => gate_strict_cmd(gate, *json),
         },
         Command::Doctor { json } => doctor_cmd(*json),
         Command::Docs { command } => docs_cmd(command),
@@ -983,12 +1003,12 @@ fn gate_status_cmd(json: bool) -> anyhow::Result<i32> {
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let loaded = Config::load(&cwd)?;
     let rows = baseline::status(&loaded.root, &loaded.config)?;
-    println!(
+    eprintln!(
         "{:<9} {:<9} {:>8}  {:<20} last ratchet",
         "gate", "mode", "baseline", "recorded"
     );
     for r in &rows {
-        println!(
+        eprintln!(
             "{:<9} {:<9} {:>8}  {:<20} {}",
             r.gate,
             r.mode,
@@ -1004,7 +1024,7 @@ fn gate_status_cmd(json: bool) -> anyhow::Result<i32> {
     Ok(EXIT_PASS)
 }
 
-fn gate_baseline_cmd(gate: &str) -> anyhow::Result<i32> {
+fn gate_baseline_cmd(gate: &str, json: bool) -> anyhow::Result<i32> {
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let loaded = Config::load(&cwd)?;
     let root = &loaded.root;
@@ -1036,13 +1056,30 @@ fn gate_baseline_cmd(gate: &str) -> anyhow::Result<i32> {
         recorded.count(),
         recorded.recorded_at
     );
+    if json {
+        let doc = serde_json::json!({
+            "gate": gate,
+            "count": recorded.count(),
+            "recorded-at": recorded.recorded_at,
+        });
+        println!("{doc:#}");
+    }
     Ok(EXIT_PASS)
 }
 
-fn gate_strict_cmd(gate: &str) -> anyhow::Result<i32> {
+fn gate_strict_cmd(gate: &str, json: bool) -> anyhow::Result<i32> {
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let loaded = Config::load(&cwd)?;
-    match baseline::flip_strict(&loaded.root, gate)? {
+    let result = baseline::flip_strict(&loaded.root, gate)?;
+    if json {
+        let doc = serde_json::json!({
+            "gate": gate,
+            "flipped": result.is_ok(),
+            "remaining": result.as_ref().err().copied().unwrap_or(0),
+        });
+        println!("{doc:#}");
+    }
+    match result {
         Ok(()) => {
             eprintln!("gate {gate}: flipped to strict in craftsman.toml (baseline debt is zero)");
             Ok(EXIT_PASS)
@@ -1064,9 +1101,9 @@ fn doctor_cmd(json: bool) -> anyhow::Result<i32> {
 
     for c in &checks {
         let mark = if c.passed { "ok  " } else { "FAIL" };
-        println!("{mark}  {:<10}  {}", c.name, c.detail);
+        eprintln!("{mark}  {:<10}  {}", c.name, c.detail);
     }
-    println!(
+    eprintln!(
         "doctor: {}/{} checks passed",
         checks.iter().filter(|c| c.passed).count(),
         checks.len()
@@ -1233,7 +1270,7 @@ fn docs_cmd(command: &DocsCommand) -> anyhow::Result<i32> {
         DocsCommand::Search { query, lib, json } => {
             docs_search_cmd(root, config, query, lib.as_deref(), *json)
         }
-        DocsCommand::Get { page } => docs_get_cmd(root, config, page),
+        DocsCommand::Get { page, json } => docs_get_cmd(root, config, page, *json),
     }
 }
 
@@ -1282,7 +1319,7 @@ fn docs_status_cmd(
             .age_days
             .map_or_else(|| "-".to_owned(), |d| format!("{d}d ago"));
         let drift = if r.drift { "  DRIFT — resync" } else { "" };
-        println!(
+        eprintln!(
             "{:<16} {:<12} cached {cached:<12} lockfile {locked:<12} fetched {age}{drift}",
             r.name,
             r.source.to_string()
@@ -1310,12 +1347,14 @@ fn docs_search_cmd(
     let cache_root = docs::cache::cache_root(root, config);
     let manifest = docs::sources::Manifest::load(&cache_root)?;
     let results = docs::search::search(&cache_root, &manifest, query, lib)?;
-    for file in results.iter().take(10) {
-        for hit in file.hits.iter().take(5) {
-            println!("{}:{}: {}", file.file, hit.line, hit.text);
-        }
-        if file.hits.len() > 5 {
-            println!("{}: … {} more hit(s)", file.file, file.hits.len() - 5);
+    if !json {
+        for file in results.iter().take(10) {
+            for hit in file.hits.iter().take(5) {
+                println!("{}:{}: {}", file.file, hit.line, hit.text);
+            }
+            if file.hits.len() > 5 {
+                println!("{}: … {} more hit(s)", file.file, file.hits.len() - 5);
+            }
         }
     }
     let total: usize = results.iter().map(|f| f.hits.len()).sum();
@@ -1337,6 +1376,7 @@ fn docs_get_cmd(
     root: &std::path::Path,
     config: &craftsman::config::Config,
     page: &str,
+    json: bool,
 ) -> anyhow::Result<i32> {
     use craftsman::docs;
 
@@ -1345,7 +1385,16 @@ fn docs_get_cmd(
     let manifest = docs::sources::Manifest::load(&cache_root)?;
     let (text, path) = docs::search::get_page(&cache_root, &manifest, page)?;
     eprintln!("docs get: {}", path.display());
-    print!("{text}");
+    if json {
+        let doc = serde_json::json!({
+            "page": page,
+            "path": path.display().to_string(),
+            "text": text,
+        });
+        println!("{doc:#}");
+    } else {
+        print!("{text}");
+    }
     Ok(EXIT_PASS)
 }
 
