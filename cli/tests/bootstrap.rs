@@ -264,3 +264,51 @@ fn init_typescript_default_spec_is_a_discoverable_feature_file() {
         "config must point at the feature file: {config}"
     );
 }
+
+/// GAP-R01 pin: `adopt --start-phase 2` records a baseline for every gate
+/// in baseline mode — the Phase 2 "hold the line" move, end to end over a
+/// real repo with a seeded health finding.
+#[test]
+fn adopt_phase_2_records_baselines_for_baseline_mode_gates() {
+    let tmp = repo();
+    let root = tmp.path();
+    std::fs::create_dir_all(root.join("src")).expect("mkdirs");
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub fn inherited() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    let _ = a + b + c + d + e;\n}\n",
+    )
+    .expect("seed source");
+    let add = Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(root)
+        .status()
+        .expect("git add");
+    assert!(add.success());
+
+    adopt::start_phase(root, 0).expect("phase 0 starts");
+    adopt::complete_phase(root, 0).expect("phase 0 completes");
+    adopt::start_phase(root, 1).expect("phase 1 starts (writes the config)");
+    adopt::complete_phase(root, 1).expect("phase 1 completes");
+
+    // The skill's move between phases 1 and 2: flip gates to baseline.
+    let config_path = root.join("craftsman.toml");
+    let mut config = std::fs::read_to_string(&config_path).expect("config");
+    config.push_str("health = \"baseline\"\n\n[health]\nmax-function-lines = 5\n");
+    std::fs::write(&config_path, config).expect("flip health to baseline");
+
+    let report = adopt::start_phase(root, 2).expect("phase 2 records baselines");
+    assert!(
+        report
+            .actions
+            .iter()
+            .any(|a| a.contains("gate health: baseline recorded — 1 finding(s)")),
+        "phase 2 must announce the recorded debt: {:?}",
+        report.actions
+    );
+    let baseline =
+        std::fs::read_to_string(root.join(".craftsman/baselines/health.json")).expect("snapshot");
+    assert!(
+        baseline.contains("max-function-lines"),
+        "the snapshot must carry the seeded finding: {baseline}"
+    );
+}
