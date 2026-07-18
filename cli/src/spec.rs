@@ -181,28 +181,7 @@ pub fn lint(feature: &Feature) -> Vec<Finding> {
             seen.entry(name).or_insert(line);
         }
 
-        let forbidden: Vec<&str> = [
-            ('`', "backtick"),
-            ('\\', "backslash"),
-            ('\n', "newline"),
-            ('\r', "carriage return"),
-        ]
-        .iter()
-        .filter(|(c, _)| name.contains(*c))
-        .map(|&(_, label)| label)
-        .collect();
-        if !forbidden.is_empty() {
-            findings.push(Finding::error(
-                "forbidden-name-character",
-                line,
-                format!(
-                    "scenario name contains {} — rejected per ADR-001 (breaks code-gen \
-                     and runner filters); rename, do not rewrite silently",
-                    forbidden.join(", ")
-                ),
-            ));
-        }
-
+        name_findings(name, line, &mut findings);
         for tag in &scenario.tags {
             if is_batch_tag(tag) {
                 findings.push(Finding::error(
@@ -216,24 +195,50 @@ pub fn lint(feature: &Feature) -> Vec<Finding> {
                 ));
             }
         }
-
-        let hostile: Vec<char> = name
-            .chars()
-            .filter(|c| REGEX_METACHARACTERS.contains(*c))
-            .collect();
-        if !hostile.is_empty() {
-            findings.push(Finding::warning(
-                "regex-metacharacter",
-                line,
-                format!(
-                    "scenario name contains regex metacharacter(s) {hostile:?} — legal, \
-                     but every runner filter must escape them (ADR-001 rule 4)"
-                ),
-            ));
-        }
     }
 
     findings
+}
+
+/// Character-level checks on one scenario name: code-gen-breaking
+/// characters (error) and regex-hostile ones (warning) per ADR-001.
+fn name_findings(name: &str, line: usize, findings: &mut Vec<Finding>) {
+    let forbidden: Vec<&str> = [
+        ('`', "backtick"),
+        ('\\', "backslash"),
+        ('\n', "newline"),
+        ('\r', "carriage return"),
+    ]
+    .iter()
+    .filter(|(c, _)| name.contains(*c))
+    .map(|&(_, label)| label)
+    .collect();
+    if !forbidden.is_empty() {
+        findings.push(Finding::error(
+            "forbidden-name-character",
+            line,
+            format!(
+                "scenario name contains {} — rejected per ADR-001 (breaks code-gen \
+                 and runner filters); rename, do not rewrite silently",
+                forbidden.join(", ")
+            ),
+        ));
+    }
+
+    let hostile: Vec<char> = name
+        .chars()
+        .filter(|c| REGEX_METACHARACTERS.contains(*c))
+        .collect();
+    if !hostile.is_empty() {
+        findings.push(Finding::warning(
+            "regex-metacharacter",
+            line,
+            format!(
+                "scenario name contains regex metacharacter(s) {hostile:?} — legal, \
+                 but every runner filter must escape them (ADR-001 rule 4)"
+            ),
+        ));
+    }
 }
 
 /// `@batch-N` (tags arrive from the parser without the `@`).

@@ -16,6 +16,11 @@
 //! duplicate or empty names) would otherwise become a compile error or a
 //! silent mis-selection downstream.
 
+mod a11y;
+mod steps;
+pub use a11y::{A11Y_STUB_FILE, a11y_stub};
+pub(crate) use steps::{StepCall, StepRegistry, example_table, typed_params};
+
 pub mod bash;
 pub mod swift;
 
@@ -111,82 +116,49 @@ pub fn run(cwd: &Path) -> Result<Outcome, GenError> {
 
     let mut files = Vec::new();
     for stack in codegen_stacks {
-        let section = config.verify.stack(stack);
-        match stack {
-            "swift" => {
-                let tests_dir = swift::resolve_tests_dir(&root, section)?;
-                let out = swift::generate(&feature)?;
-                write_ours(
-                    &tests_dir.join("Generated/SpecScenarios.swift"),
-                    &out.runner,
-                    &mut files,
-                )?;
-                write_theirs_once(
-                    &tests_dir.join("Steps.swift.template"),
-                    &out.steps_template,
-                    &mut files,
-                )?;
-            }
-            "bash" => {
-                let bats_dir = bats_dir(&root, section);
-                let out = bash::generate(&feature)?;
-                write_ours(
-                    &bats_dir.join("generated_spec.bats"),
-                    &out.runner,
-                    &mut files,
-                )?;
-                write_theirs_once(
-                    &bats_dir.join("steps.bash.template"),
-                    &out.steps_template,
-                    &mut files,
-                )?;
-            }
-            _ => unreachable!("filtered to codegen stacks above"),
-        }
+        generate_stack(stack, &root, &config, &feature, &mut files)?;
     }
     Ok(Outcome::Generated(files))
 }
 
-/// File name of the write-once `XCUITest` audit template
-/// (`spec gen --a11y-stub`), emitted at the project root.
-pub const A11Y_STUB_FILE: &str = "AccessibilityAuditTests.swift.template";
-
-/// The template's content: one test that launches the app and runs
-/// `performAccessibilityAudit()` (Xcode 15+; any audit finding fails the
-/// test, which the a11y gate reads from the result bundle). UI-test
-/// bundles are `XCTest` even in a Swift Testing world — Swift Testing
-/// does not do UI automation (research doc).
-const A11Y_STUB: &str = "\
-// XCUITest accessibility audit — written ONCE by `craftsman spec gen
-// --a11y-stub` and never overwritten (this file is yours from now on).
-// Add it to the UI-test target named in [a11y] ui-test-target (an Xcode
-// target craftsman does not manage); `craftsman a11y` then runs that
-// target via xcodebuild and turns failed tests into findings.
-
-import XCTest
-
-final class AccessibilityAuditTests: XCTestCase {
-    @MainActor
-    func testAccessibilityAudit() throws {
-        let app = XCUIApplication()
-        app.launch()
-        // step: customize audit types
-        // e.g. try app.performAccessibilityAudit(for: [.contrast, .hitRegion])
-        try app.performAccessibilityAudit()
+/// Generate one stack's runner file (ours, rewritten) and step template
+/// (theirs, write-once).
+fn generate_stack(
+    stack: &str,
+    root: &Path,
+    config: &Config,
+    feature: &gherkin::Feature,
+    files: &mut Vec<FileReport>,
+) -> Result<(), GenError> {
+    let section = config.verify.stack(stack);
+    match stack {
+        "swift" => {
+            let tests_dir = swift::resolve_tests_dir(root, section)?;
+            let out = swift::generate(feature)?;
+            write_ours(
+                &tests_dir.join("Generated/SpecScenarios.swift"),
+                &out.runner,
+                files,
+            )?;
+            write_theirs_once(
+                &tests_dir.join("Steps.swift.template"),
+                &out.steps_template,
+                files,
+            )?;
+        }
+        "bash" => {
+            let bats_dir = bats_dir(root, section);
+            let out = bash::generate(feature)?;
+            write_ours(&bats_dir.join("generated_spec.bats"), &out.runner, files)?;
+            write_theirs_once(
+                &bats_dir.join("steps.bash.template"),
+                &out.steps_template,
+                files,
+            )?;
+        }
+        _ => unreachable!("filtered to codegen stacks above"),
     }
-}
-";
-
-/// `spec gen --a11y-stub` — emit the write-once audit template at the
-/// project root (never overwritten once created; the file is theirs).
-///
-/// # Errors
-/// [`GenError`] on config or write failures.
-pub fn a11y_stub(cwd: &Path) -> Result<Vec<FileReport>, GenError> {
-    let loaded = Config::load(cwd)?;
-    let mut files = Vec::new();
-    write_theirs_once(&loaded.root.join(A11Y_STUB_FILE), A11Y_STUB, &mut files)?;
-    Ok(files)
+    Ok(())
 }
 
 /// The bash stack's bats directory (`[verify.bash] cwd` + `bats-dir`,
@@ -248,241 +220,3 @@ fn write_theirs_once(
 // Shared name plumbing — one slug algorithm so a step keeps the same
 // function name in every generated language.
 // ---------------------------------------------------------------------------
-
-/// One outline parameter a step takes: the Examples header and whether its
-/// column is integer-typed (Swift `Int` vs `String`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Param {
-    pub header: String,
-    pub is_int: bool,
-}
-
-/// A step reference inside one scenario: which unique step function it
-/// calls and with which outline parameters (empty outside outlines).
-#[derive(Debug, Clone)]
-pub(crate) struct StepCall {
-    /// Final function name, `step_<slug>` (de-collided).
-    pub name: String,
-    /// Outline parameters used by this step, in order of appearance.
-    pub params: Vec<Param>,
-}
-
-/// One unique step function to stub.
-#[derive(Debug, Clone)]
-pub(crate) struct StepFn {
-    pub name: String,
-    /// Human text for the not-implemented marker: `<keyword> <value>`.
-    pub display: String,
-    /// Outline parameters this step takes, in order.
-    pub params: Vec<Param>,
-}
-
-/// Lowercase snake slug: alphanumerics kept, everything else collapses to
-/// single underscores. Never empty (falls back to `step`).
-pub(crate) fn slug(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut last_underscore = true;
-    for c in text.chars() {
-        if c.is_alphanumeric() {
-            out.extend(c.to_lowercase());
-            last_underscore = false;
-        } else if !last_underscore {
-            out.push('_');
-            last_underscore = true;
-        }
-    }
-    let trimmed = out.trim_end_matches('_');
-    if trimmed.is_empty() {
-        "step".to_owned()
-    } else {
-        trimmed.to_owned()
-    }
-}
-
-/// The `<placeholder>` parameters present in a step's text that are outline
-/// headers, in order of appearance.
-fn step_params(value: &str, headers: &[Param]) -> Vec<Param> {
-    let mut params: Vec<(usize, Param)> = Vec::new();
-    for param in headers {
-        if let Some(pos) = value.find(&format!("<{}>", param.header))
-            && !params.iter().any(|(_, p)| p.header == param.header)
-        {
-            params.push((pos, param.clone()));
-        }
-    }
-    params.sort_by_key(|(pos, _)| *pos);
-    params.into_iter().map(|(_, p)| p).collect()
-}
-
-/// Step text with outline placeholders removed, for slugging — so every
-/// Examples row calls the same function.
-fn strip_placeholders(value: &str, headers: &[Param]) -> String {
-    let mut out = value.to_owned();
-    for param in headers {
-        out = out.replace(&format!("<{}>", param.header), " ");
-    }
-    out
-}
-
-/// Per-feature step registry: assigns each unique step (by slug + params)
-/// a stable, collision-free function name.
-#[derive(Debug, Default)]
-pub(crate) struct StepRegistry {
-    fns: Vec<StepFn>,
-}
-
-impl StepRegistry {
-    /// Register a step occurrence, returning its call site.
-    pub fn call(&mut self, keyword: &str, value: &str, headers: &[Param]) -> StepCall {
-        let params = step_params(value, headers);
-        let base = format!("step_{}", slug(&strip_placeholders(value, headers)));
-        let display = format!("{} {}", keyword.trim(), value);
-
-        // Same slug + same params = same step function (first display wins).
-        if let Some(existing) = self
-            .fns
-            .iter()
-            .find(|f| f.params == params && (f.name == base || is_decollision_of(&f.name, &base)))
-        {
-            return StepCall {
-                name: existing.name.clone(),
-                params,
-            };
-        }
-        // De-collide against same-named functions with different params.
-        let mut name = base.clone();
-        let mut n = 1;
-        while self.fns.iter().any(|f| f.name == name) {
-            n += 1;
-            name = format!("{base}_{n}");
-        }
-        self.fns.push(StepFn {
-            name: name.clone(),
-            display,
-            params: params.clone(),
-        });
-        StepCall { name, params }
-    }
-
-    pub fn fns(&self) -> &[StepFn] {
-        &self.fns
-    }
-}
-
-/// Whether `name` is `base` with a `_<n>` de-collision suffix.
-fn is_decollision_of(name: &str, base: &str) -> bool {
-    name.strip_prefix(base)
-        .and_then(|rest| rest.strip_prefix('_'))
-        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// A scenario outline's Examples: shared headers and every row.
-#[derive(Debug, Clone)]
-pub(crate) struct ExampleTable {
-    pub headers: Vec<String>,
-    pub rows: Vec<Vec<String>>,
-}
-
-/// Collect a scenario's Examples rows across its tables, requiring
-/// identical headers.
-///
-/// Returns `None` for a plain scenario (no Examples).
-pub(crate) fn example_table(
-    scenario: &gherkin::Scenario,
-) -> Result<Option<ExampleTable>, GenError> {
-    let mut merged: Option<ExampleTable> = None;
-    for examples in &scenario.examples {
-        let Some(table) = &examples.table else {
-            continue;
-        };
-        let Some((headers, rows)) = table.rows.split_first() else {
-            continue;
-        };
-        match &mut merged {
-            None => {
-                merged = Some(ExampleTable {
-                    headers: headers.clone(),
-                    rows: rows.to_vec(),
-                });
-            }
-            Some(t) if t.headers == *headers => t.rows.extend(rows.iter().cloned()),
-            Some(t) => {
-                return Err(GenError::MixedExampleHeaders {
-                    scenario: scenario.name.clone(),
-                    first: t.headers.clone(),
-                    second: headers.clone(),
-                });
-            }
-        }
-    }
-    Ok(merged)
-}
-
-/// Whether every value of column `i` parses as an integer (typed columns
-/// become `Int` in Swift; everything else stays a string).
-pub(crate) fn column_is_int(table: &ExampleTable, i: usize) -> bool {
-    !table.rows.is_empty()
-        && table
-            .rows
-            .iter()
-            .all(|row| row.get(i).is_some_and(|v| v.trim().parse::<i64>().is_ok()))
-}
-
-/// A table's headers as typed [`Param`]s.
-pub(crate) fn typed_params(table: &ExampleTable) -> Vec<Param> {
-    table
-        .headers
-        .iter()
-        .enumerate()
-        .map(|(i, h)| Param {
-            header: h.clone(),
-            is_int: column_is_int(table, i),
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn slug_collapses_and_lowercases() {
-        assert_eq!(slug("An empty todo list"), "an_empty_todo_list");
-        assert_eq!(slug("I add a todo \"Buy milk\""), "i_add_a_todo_buy_milk");
-        assert_eq!(slug("Café — fermé!"), "café_fermé");
-        assert_eq!(slug("   "), "step");
-    }
-
-    fn param(header: &str) -> Param {
-        Param {
-            header: header.to_owned(),
-            is_int: false,
-        }
-    }
-
-    #[test]
-    fn registry_reuses_identical_steps_and_decollides_conflicts() {
-        let mut reg = StepRegistry::default();
-        let headers = vec![param("quantity")];
-        let a = reg.call("Given", "an empty list", &[]);
-        let b = reg.call("When", "an empty list", &[]);
-        assert_eq!(a.name, b.name, "same text = same step function");
-        // Same slug, different params → a distinct de-collided function.
-        let c = reg.call("When", "an empty list <quantity>", &headers);
-        assert_eq!(c.name, "step_an_empty_list_2");
-        assert_eq!(c.params, headers);
-        assert_eq!(reg.fns().len(), 2);
-    }
-
-    #[test]
-    fn step_params_follow_appearance_order() {
-        let headers = vec![param("reason"), param("quantity")];
-        assert_eq!(
-            step_params("sets <quantity> because <reason>", &headers)
-                .into_iter()
-                .map(|p| p.header)
-                .collect::<Vec<_>>(),
-            vec!["quantity".to_owned(), "reason".to_owned()]
-        );
-    }
-}
