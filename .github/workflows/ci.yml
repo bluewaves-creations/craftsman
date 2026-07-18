@@ -33,6 +33,16 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+      # The CLI verifies itself: every enabled gate, uncached on a fresh
+      # runner. Hermetic tool installs (gitleaks/osv-scanner + semgrep's
+      # ruleset/offline DBs) land in ~/.craftsman/tools — cached below,
+      # keyed on the pins in craftsman.toml, so only the first run per
+      # pin-set pays the download.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.craftsman/tools
+          key: craftsman-tools-${{ runner.os }}-${{ hashFiles('craftsman.toml') }}
+      - run: cargo run -q -- check-all
 
   # swift-linux (Batch 5, honest-undone): the swift round trip in
   # tests/codegen.rs needs Swift >= 6.2 on the runner (SE-0451 raw

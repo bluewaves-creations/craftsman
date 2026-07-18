@@ -1,6 +1,6 @@
 [package]
 name = "craftsman"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 description = "The Craftsman Dev CLI — mechanical verification for agentic development"
 license = "MIT"
@@ -30,3 +30,8 @@ tokio = { version = "1.53.0", features = ["macros", "rt-multi-thread"] }
 [[test]]
 name = "spec"
 harness = false
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
