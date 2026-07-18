@@ -146,9 +146,100 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Orchestrate every enabled gate in order (verify → lint →
-    /// security), honoring modes, with a file-hash cache that skips gates
-    /// whose inputs are unchanged since their last green run.
+    /// The arch gate: dependency-direction fitness rules from
+    /// [arch] deny = ["A -> B", ...] — a file under path prefix A (relative
+    /// to the stack root) importing anything under B is a violation.
+    ///
+    /// v1 is textual import extraction (rust `use crate::`, python
+    /// import/from, ts relative imports, swift modules via Package.swift
+    /// targets, bash source). Exit 3 when no rules are configured — an
+    /// enabled gate with zero rules is never silent green.
+    Arch {
+        /// Accepted for gate-surface symmetry; dependency direction is a
+        /// whole-graph property, the scan always runs full
+        #[arg(long)]
+        changed: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// The health gate: function length, file length, complexity
+    /// approximation, and duplicate blocks — craftsman's own
+    /// deterministic metrics, thresholds in [health].
+    ///
+    /// Exit codes: 0 clean (or no new findings in baseline mode) · 1
+    /// blocking findings.
+    Health {
+        /// Narrow reported findings to files changed against HEAD (the
+        /// scan itself always covers the repo — duplication is
+        /// cross-file)
+        #[arg(long)]
+        changed: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// The mutate gate: diff-scoped mutation testing (rust:
+    /// cargo-mutants --in-diff; python: mutmut on changed files;
+    /// typescript: Stryker incremental). Score on changed code must reach
+    /// [mutate] min-score (default 60); survived mutants are findings.
+    ///
+    /// Diff-scoped by design: full runs are slow, so --all demands
+    /// --yes-slow — asking for --all alone is a usage error (exit 2,
+    /// enforced by the argument parser). Swift/bash stacks are refused
+    /// loudly (exit 3): no production-consensus tool exists.
+    Mutate {
+        /// Accepted for symmetry; mutation is diff-scoped by default
+        #[arg(long)]
+        changed: bool,
+        /// Mutate everything, not just the diff (slow — requires
+        /// --yes-slow)
+        #[arg(long, requires = "yes_slow")]
+        all: bool,
+        /// Consent to the slow full run
+        #[arg(long)]
+        yes_slow: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// The perf gate: Lighthouse CI ([perf] lighthouse-config) or k6
+    /// thresholds ([perf] k6-script). Refuses with exit 3 when [perf] is
+    /// absent — configure it or keep the gate off.
+    Perf {
+        /// Accepted for symmetry; the configured suite always runs full
+        #[arg(long)]
+        changed: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// The a11y gate: playwright test filtered to [a11y] test-glob
+    /// (axe-based specs are user-land). Refuses with exit 3 when [a11y]
+    /// is absent.
+    A11y {
+        /// Accepted for symmetry; the configured suite always runs full
+        #[arg(long)]
+        changed: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// The visual gate: playwright test filtered to [visual] test-glob
+    /// (screenshot-comparison specs). Refuses with exit 3 when [visual]
+    /// is absent.
+    Visual {
+        /// Accepted for symmetry; the configured suite always runs full
+        #[arg(long)]
+        changed: bool,
+        /// Emit findings as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
+    /// Orchestrate every enabled gate in order (verify → lint → arch →
+    /// security → health → mutate → perf → a11y → visual), honoring
+    /// modes, with a file-hash cache that skips gates whose inputs are
+    /// unchanged since their last green run.
     ///
     /// Exit codes: 0 all green · 1 any red · 3 orchestrator error.
     CheckAll {
@@ -227,7 +318,7 @@ enum GateCommand {
     /// baseline commit ref); every other tool lands in the unified
     /// fingerprint snapshot at .craftsman/baselines/<gate>.json.
     Baseline {
-        /// The gate to record (lint | security)
+        /// The gate to record (lint | security | health | arch)
         gate: String,
     },
     /// Flip a gate to strict in craftsman.toml — only when its baseline
@@ -316,6 +407,17 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         }
         Command::Lint { changed, json } => gate_cmd("lint", *changed, *json),
         Command::Security { changed, json } => gate_cmd("security", *changed, *json),
+        Command::Arch { changed, json } => gate_cmd("arch", *changed, *json),
+        Command::Health { changed, json } => gate_cmd("health", *changed, *json),
+        Command::Mutate {
+            changed: _,
+            all,
+            yes_slow: _,
+            json,
+        } => mutate_cmd(*all, *json),
+        Command::Perf { changed, json } => gate_cmd("perf", *changed, *json),
+        Command::A11y { changed, json } => gate_cmd("a11y", *changed, *json),
+        Command::Visual { changed, json } => gate_cmd("visual", *changed, *json),
         Command::CheckAll { changed, json } => check_all_cmd(*changed, *json),
         Command::Gate { command } => match command {
             GateCommand::Status { json } => gate_status_cmd(*json),
@@ -326,8 +428,8 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
     }
 }
 
-/// Shared command flow for the direct `lint` / `security` invocations.
-fn gate_cmd(gate: &str, changed: bool, json: bool) -> anyhow::Result<i32> {
+/// Shared command flow for the direct gate invocations.
+fn gate_cmd(gate: &'static str, changed: bool, json: bool) -> anyhow::Result<i32> {
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let loaded = Config::load(&cwd)?;
     let config = &loaded.config;
@@ -348,8 +450,37 @@ fn gate_cmd(gate: &str, changed: bool, json: bool) -> anyhow::Result<i32> {
     let outcome = match gate {
         "lint" => gates::lint::run(root, config, changed_set.as_deref(), mode)?,
         "security" => gates::security::run(root, config, changed_set.as_deref(), mode)?,
-        _ => unreachable!("only lint/security route here"),
+        "arch" => gates::arch::run(root, config, changed_set.as_deref(), mode)?,
+        "health" => gates::health::run(root, config, changed_set.as_deref(), mode)?,
+        "perf" | "a11y" | "visual" => {
+            gates::runtime::run(root, config, gate, changed_set.as_deref(), mode)?
+        }
+        _ => unreachable!("only gate subcommands route here"),
     };
+    print_outcome(&outcome, json);
+    Ok(if outcome.passed() {
+        EXIT_PASS
+    } else {
+        EXIT_VERIFICATION_FAILURE
+    })
+}
+
+/// `craftsman mutate` — diff-scoped by default; `--all` (guarded by
+/// `--yes-slow` at the parser level) runs everything.
+fn mutate_cmd(all: bool, json: bool) -> anyhow::Result<i32> {
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let loaded = Config::load(&cwd)?;
+    let mode = loaded
+        .config
+        .gates
+        .mode("mutate")
+        .unwrap_or(craftsman::config::GateMode::Strict);
+    let scope = if all {
+        gates::mutate::Scope::All
+    } else {
+        gates::mutate::Scope::Diff
+    };
+    let outcome = gates::mutate::run(&loaded.root, &loaded.config, scope, mode)?;
     print_outcome(&outcome, json);
     Ok(if outcome.passed() {
         EXIT_PASS
@@ -459,11 +590,16 @@ fn gate_baseline_cmd(gate: &str) -> anyhow::Result<i32> {
     let loaded = Config::load(&cwd)?;
     let root = &loaded.root;
     let config = &loaded.config;
+    let strict = craftsman::config::GateMode::Strict;
     let recorded = match gate {
-        "lint" => {
-            let outcome =
-                gates::lint::run(root, config, None, craftsman::config::GateMode::Strict)?;
-            let base = baseline::Baseline::record("lint", &outcome.findings);
+        "lint" | "health" | "arch" => {
+            let outcome = match gate {
+                "lint" => gates::lint::run(root, config, None, strict)?,
+                "health" => gates::health::run(root, config, None, strict)?,
+                "arch" => gates::arch::run(root, config, None, strict)?,
+                _ => unreachable!("matched above"),
+            };
+            let base = baseline::Baseline::record(gate, &outcome.findings);
             baseline::save(root, &base)?;
             base
         }

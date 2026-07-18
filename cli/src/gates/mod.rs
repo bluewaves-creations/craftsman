@@ -163,8 +163,8 @@ pub enum GateError {
         source: std::io::Error,
     },
     #[error(
-        "gate {gate:?} is not orchestrated yet (Batch 6b) — supported today: \
-         verify, lint, security"
+        "gate {gate:?} has no baseline mechanism — baselines exist for \
+         lint, security, health, and arch"
     )]
     UnsupportedGate { gate: String },
     #[error("gate {gate} is not configured — {hint} (see `craftsman {gate} --help`)")]

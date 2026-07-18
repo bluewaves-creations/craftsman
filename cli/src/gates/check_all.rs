@@ -1,8 +1,11 @@
 //! `craftsman check-all` — orchestrate the enabled gates.
 //!
-//! Order: verify → lint → security (Batch 6b gates slot in after),
-//! honoring per-gate modes, with a file-hash cache that skips gates whose
-//! inputs have not changed since their last green run.
+//! Order (Batch 6b): verify → lint → arch → security → health → mutate →
+//! perf → a11y → visual — cheap static gates before slow and runtime ones
+//! — honoring per-gate modes, with a file-hash cache that skips gates
+//! whose inputs have not changed since their last green run. Mutate runs
+//! diff-scoped here always; full mutation runs exist only behind
+//! `craftsman mutate --all --yes-slow`.
 //!
 //! Cache: `.craftsman/cache/gates.json`, keyed per gate by a hash over
 //! (gate, changed flag, HEAD when changed, craftsman.toml content, the
@@ -14,7 +17,10 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{GateError, GateOutcome, changed_files, fnv_hex, git, lint, security};
+use super::{
+    GateError, GateOutcome, arch, changed_files, fnv_hex, git, health, lint, mutate, runtime,
+    security,
+};
 use crate::config::{Config, GateMode};
 use crate::verify::{self, Outcome as VerifyOutcome, Selection};
 
@@ -59,21 +65,10 @@ impl Report {
 /// Run every enabled gate.
 ///
 /// # Errors
-/// [`GateError`] on tool/config failure — including a gate that is enabled
-/// but not yet orchestrated (Batch 6b): enabled-but-unrunnable is exit 3,
+/// [`GateError`] on tool/config failure — including an enabled runtime
+/// gate whose config section is absent: enabled-but-unrunnable is exit 3,
 /// never a silent skip.
 pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateError> {
-    // Refuse silently-unrunnable configurations upfront.
-    for (gate, mode) in config.gates.by_name() {
-        if !matches!(gate, "verify" | "lint" | "security")
-            && mode.is_some_and(|m| m != GateMode::Off)
-        {
-            return Err(GateError::UnsupportedGate {
-                gate: gate.to_owned(),
-            });
-        }
-    }
-
     let changed_set: Option<Vec<String>> = if changed {
         Some(changed_files(root)?)
     } else {
@@ -83,9 +78,6 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
     let mut gates: Vec<GateSummary> = Vec::new();
     let mut outcomes: Vec<GateOutcome> = Vec::new();
     for (gate, mode) in config.gates.by_name() {
-        if !matches!(gate, "verify" | "lint" | "security") {
-            continue;
-        }
         let Some(mode) = mode.filter(|m| *m != GateMode::Off) else {
             gates.push(GateSummary {
                 gate,
@@ -110,21 +102,25 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
             continue;
         }
 
-        let summary = match gate {
-            "verify" => run_verify(root, changed)?,
-            "lint" => {
-                let outcome = lint::run(root, config, changed_set.as_deref(), mode)?;
-                let summary = summarize(gate, &outcome);
-                outcomes.push(outcome);
-                summary
-            }
-            "security" => {
-                let outcome = security::run(root, config, changed_set.as_deref(), mode)?;
-                let summary = summarize(gate, &outcome);
-                outcomes.push(outcome);
-                summary
-            }
-            _ => unreachable!("gate list is filtered above"),
+        let summary = if gate == "verify" {
+            run_verify(root, changed)?
+        } else {
+            let outcome = match gate {
+                "lint" => lint::run(root, config, changed_set.as_deref(), mode)?,
+                "arch" => arch::run(root, config, changed_set.as_deref(), mode)?,
+                "security" => security::run(root, config, changed_set.as_deref(), mode)?,
+                "health" => health::run(root, config, changed_set.as_deref(), mode)?,
+                // Always diff-scoped inside check-all; full runs need the
+                // explicit `craftsman mutate --all --yes-slow`.
+                "mutate" => mutate::run(root, config, mutate::Scope::Diff, mode)?,
+                "perf" | "a11y" | "visual" => {
+                    runtime::run(root, config, gate, changed_set.as_deref(), mode)?
+                }
+                other => unreachable!("unknown gate {other}"),
+            };
+            let summary = summarize(gate, &outcome);
+            outcomes.push(outcome);
+            summary
         };
         let green = summary.verdict == GateVerdict::Green;
         gates.push(summary);
