@@ -116,7 +116,20 @@ Scenarios:
 - Check-all skips an unchanged clean gate via the cache
 
 ## Batch 6b — Mutate, health, arch, runtime gates
-- [ ] `check-all` with file-hash cache; `mutate` (cargo-mutants/mutmut/Stryker, diff-scoped); `health` (complexity/size/duplication metrics — own implementation, thresholds in toml); `arch` v1 (import-direction rules for rust+swift via syn/swift-syntax parsing — the no-incumbent gap; `perf`/`a11y`/`visual` orchestrate lhci/axe/Playwright configs).
+
+- [x] `mutate` (gates/mutate.rs): diff-scoped mutation testing — rust via cargo-mutants 27.1.0 (hermetic `cargo install --root ~/.craftsman/tools/…`, `--in-diff`, outcomes.json schema observed live), python via mutmut 2.5.1 `--paths-to-mutate` over changed files (mutmut 3 dropped CLI scoping — ADR-004), typescript via Stryker incremental `--mutate`; score vs `[mutate] min-score` (default 60), survivors → `rule=survived-mutant` findings; swift/bash refuse loudly (exit 3); full runs only behind `--all --yes-slow` (clap `requires` → usage error, exit 2).
+- [x] `health` (gates/health.rs): own deterministic metrics — function length (brace/indentation heuristics), file length, branch-keyword complexity approximation, normalized-line duplication shingles (window 12); thresholds in `[health]`; finding messages carry thresholds, never measured values, so fingerprints survive edits and the ratchet rewards improvement.
+- [x] `arch` (gates/arch.rs): `[arch] deny = ["A -> B"]` direction rules over **textual** import extraction (rust `use crate::`, python, ts relative, swift modules via Package.swift targets, bash source) — the planned syn/swift-syntax parsers were not needed for v1 (documented limits instead; revisit if they bite). `max-file-lines` moved OUT to health (ADR-004).
+- [x] runtime gates `perf|a11y|visual` (gates/runtime.rs): lhci autorun / k6 `--summary-export` / playwright JSON reporter; an absent config section refuses with exit 3; parsers unit-tested on samples per official schema docs (provenance marked), no fixture-site integration.
+- [x] check-all order: verify → lint → arch → security → health → mutate → perf → a11y → visual; modes + cache as before; mutate is always diff-scoped inside check-all.
+- [ ] python/ts mutate proven live *through craftsman* — **honest-undone**: mutmut 2.5.1 was measured live standalone (0.8s scratch-project run; the counts-line parser is built from that observed output) but the committed python fixture has no mutable source module, and Stryker needs a user-land stryker.conf + test-runner plugin (beyond a quick fixture). Parsers are unit-tested; those two command paths lack an e2e run.
+- Notes: gate settings live in **top-level tables** (`[health]`, `[mutate]`, `[arch]`, `[perf]`, `[a11y]`, `[visual]`) because `[gates] <name> = "mode"` already claims the TOML key — the design-doc `[gates.arch.rules]` sketch is unparseable TOML (ADR-004). Dogfood: `arch = "strict"` with `deny = ["src/verify -> src/gates"]` (verified against the real import graph, proven by a deliberate violation and a spec scenario); `health = "baseline"` recorded **41** honest findings (18 long functions, 15 long files, 7 complexity, 1 duplication; top offender: gates/health.rs itself, 8). Mutate live on this repo: a 2-function diff → 8 mutants, score 28.6% (2 caught / 5 missed / 1 unviable), **30s wall** — the fresh-copy build is a ~30s floor per run, too slow for the commit gate, so `mutate` stays off and runs at batch boundaries. cargo-mutants writes no mutants.out at all on a zero-mutant diff (fixed as a loud skip). Rust mutation runs `-- --lib --bins`: integration tests reading repo-root files (SPEC.md) cannot run in the copied package tree.
+
+Scenarios:
+- Arch rejects a denied dependency direction
+- Health flags an over-long function
+- Mutate refuses full runs without explicit consent
+- Runtime gates refuse when unconfigured
 
 ## Batch 7 — Docs pipeline + extract + adr
 

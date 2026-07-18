@@ -13,7 +13,18 @@ cwd = "cli"
 [gates]
 verify = "strict"
 lint = "strict"
+arch = "strict"
 security = "baseline"
+health = "baseline"
+# mutate stays off as a commit gate: a tiny-diff run measured 30s wall
+# (fresh tree copy + baseline + 8 mutants) — run `craftsman mutate` on
+# demand at batch boundaries instead.
+
+[arch]
+# The verdict engine must not depend on gate orchestration: the
+# dependency direction is gates -> verify, never verify -> gates
+# (verified against the real import graph before enabling).
+deny = ["src/verify -> src/gates"]
 
 [gates.tools]
 gitleaks = "8.24.0"

@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "gate": "health",
+  "recorded_at": "2026-07-18T01:56:27Z",
+  "fingerprints": [
+    {
+      "tool": "health",
+      "rule": "duplication",
+      "file": "cli/tests/normalize_fixtures.rs",
+      "hash": "cc62933afdd2200e"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/gates/arch.rs",
+      "hash": "215fceea720bb1c6"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/gates/health.rs",
+      "hash": "2aa90362289862e0"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/gates/health.rs",
+      "hash": "aa95bbd9717b30a9"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/gates/health.rs",
+      "hash": "c4d1266709a7e452"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/gates/health.rs",
+      "hash": "d4b47041293a4468"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "cli/src/verify/normalize.rs",
+      "hash": "04486a131443cbd0"
+    },
+    {
+      "tool": "health",
+      "rule": "max-complexity",
+      "file": "spikes/s2-normalizer/normalizer/src/lib.rs",
+      "hash": "04486a131443cbd0"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/codegen/mod.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/codegen/swift.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/config.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/adapter.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/arch.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/baseline.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/health.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/mutate.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/runtime.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/gates/tools.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/main.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/verify/impact.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/verify/mod.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/src/verify/normalize.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-file-lines",
+      "file": "cli/tests/spec.rs",
+      "hash": "74cabad8f05c84ef"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/codegen/mod.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/config.rs",
+      "hash": "7df9ee2f5109cb9b"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/gates/check_all.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/gates/health.rs",
+      "hash": "5b6869fd513083a0"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/gates/health.rs",
+      "hash": "87bcea59539df0ff"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/gates/health.rs",
+      "hash": "a1fc6fa9889b88e1"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/gates/security.rs",
+      "hash": "fce3cb8fc6f99cbd"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/main.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/spec.rs",
+      "hash": "ac8f75230edf7daa"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/adapters/cucumber_js.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/adapters/cucumber_rs.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/mod.rs",
+      "hash": "8d6da2290d5c5c5c"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/normalize.rs",
+      "hash": "8eee7502ebf3dffc"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/normalize.rs",
+      "hash": "d2268a1d86e51247"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/src/verify/normalize.rs",
+      "hash": "f3ae4ab83b3ee34e"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "cli/tests/codegen.rs",
+      "hash": "b49f24ab69da7f35"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "spikes/s2-normalizer/normalizer/src/lib.rs",
+      "hash": "8eee7502ebf3dffc"
+    },
+    {
+      "tool": "health",
+      "rule": "max-function-lines",
+      "file": "spikes/s2-normalizer/normalizer/src/lib.rs",
+      "hash": "d2268a1d86e51247"
+    }
+  ]
+}
