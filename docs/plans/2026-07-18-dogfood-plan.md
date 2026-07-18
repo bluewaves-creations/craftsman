@@ -53,6 +53,14 @@ finding is routed, none rides on memory:
     rejected) → Batch 16.
 12. **Doctor is blind to pinned gate tools** (ledger 4) — only git/cargo are
     checked; two gates silently unrunnable on a fresh machine. → Batch 14.
+13. **Boundary extraction never fired** (observed by the human 2026-07-18) —
+    five batches (12–16) closed in one session without a single `craftsman
+    extract`; the rule existed only in the implement skill's boundary
+    checklist, which never loads when the agent works plan-driven, and the
+    compaction suggestion was conditional ("if context is long"). → The rule
+    now lives in the conventions (read every session, binds every gear):
+    every batch completion extracts and explicitly suggests compaction,
+    unconditionally; boundary.md and finish.md updated to match.
 
 ## Harvested CLI niceties (route through craftsman-spec before any code)
 

@@ -23,3 +23,7 @@ Loaded when every scenario in SPEC.md is green. Finishing is not stopping — it
 - Never finish with a gate in `baseline` mode showing ratchet regressions — the baseline must be at or below where the work started.
 - Never consolidate ADRs without human approval, or delete the tried-and-failed history while consolidating.
 - Never leave SPEC.md with an unmerged delta section after the work it specified is green.
+
+## Extract and compact
+
+A finish is a boundary too: `craftsman extract` (decisions, failed approaches, open questions — only what disk and git cannot re-derive), then suggest the human compact the conversation. Everything durable must be on disk before the context is allowed to disappear.

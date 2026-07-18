@@ -72,6 +72,10 @@ Classify the failure, then spend accordingly:
 
 Stopping means: report what was tried, draft an ADR if the failure is architectural, and wait. Never keep retrying past the budget; never lower the bar to get green.
 
+## Boundary extraction
+
+Every batch completion — boundary, finish, or a fix landed outside a batch — ends with `craftsman extract` (decisions with their rejected alternatives, failed approaches, open questions; only what disk and git cannot re-derive) followed by an explicit suggestion to the human to compact the conversation. The extract is the post-compaction briefing (`.craftsman/session/index.md`); a boundary without one leaves session knowledge only in the context window, where compaction destroys it. This step is unconditional — never skipped because context "feels short".
+
 ## The pre-action gate
 
 Before proposing any architectural approach: read `decisions/index.md`, then `git log --grep="Rejected:" -- <touched paths>`. If the approach matches something already rejected, say so, cite the commit or ADR, and confirm with the human before proceeding. Never silently retry a recorded failure.

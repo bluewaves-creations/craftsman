@@ -20,11 +20,11 @@ Loaded when a batch's target scenarios have all gone green. This is a strict che
 
 5. **Commit.** `craftsman commit` — type `feat(batch-N)`, trailers: `Scenarios:` (mandatory), `Learned:`/`Rejected:` (whenever there is one worth a future session reading), `Ref:` to SPEC.md/PLAN.md. The CLI refuses if gates are red and writes `Verified-by:` itself — if it refuses, you are back at step 2, not looking for a workaround.
 
-6. **Stop and report.** Green/red scenario counts, gate results, gap findings, plan revisions, learnings. Then wait. The human says "next" — you never start the next batch on your own.
+6. **Stop, report, suggest compaction.** Green/red scenario counts, gate results, gap findings, plan revisions, learnings — and end the report by telling the human this is the safe moment to compact the conversation: the extract just made everything durable on disk, and `.craftsman/session/index.md` is the post-compaction briefing. Not conditional on context length — every boundary ends with the suggestion (dogfood 2026-07-18: the conditional version never fired). Then wait. The human says "next" — you never start the next batch on your own.
 
-## If context is long
+## Resuming after a compaction
 
-After step 5, this is the safe moment for the harness to compact: everything durable is on disk. If you resume from a compaction, read `.craftsman/session/index.md` first — it is the "where was I" briefing.
+Read `.craftsman/session/index.md` first — it is the "where was I" briefing; the per-batch files under `.craftsman/session/` hold the detail.
 
 ## Never
 
