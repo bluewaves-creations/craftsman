@@ -104,6 +104,32 @@ Feature: Craftsman CLI core
     Then the exit code is 1
     And the output contains "Ghost behavior"
 
+  Scenario: Lint reports findings with file and line
+    Given a rust gate fixture with a seeded formatting finding
+    When I run craftsman with "lint"
+    Then the exit code is 1
+    And the output contains "src/lib.rs:1"
+
+  Scenario: Gate baseline then rerun goes green
+    Given a rust gate fixture with a seeded finding and the lint gate in baseline mode
+    And its lint baseline has been recorded
+    When I run craftsman with "lint"
+    Then the exit code is 0
+    And the output contains "baselined"
+
+  Scenario: Gate strict refuses while the baseline is nonempty
+    Given a second rust gate fixture with a seeded finding and the lint gate in baseline mode
+    And its lint baseline has been recorded
+    When I run craftsman with "gate strict lint"
+    Then the exit code is 1
+    And the output contains "1 finding"
+
+  Scenario: Check-all skips an unchanged clean gate via the cache
+    Given a clean rust gate fixture under git with the lint gate strict
+    When I run craftsman check-all twice
+    Then the exit code is 0
+    And the output contains "cache"
+
   Scenario: Commit refuses when nothing is staged
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     And the project is a fresh git repository

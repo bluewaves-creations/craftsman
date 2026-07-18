@@ -214,6 +214,142 @@ fn scaffolded_undefined_project(w: &mut CliWorld) {
     scaffold_fixture(w, "craftsman-spec-undefined-fixture", spec);
 }
 
+/// A minimal cargo library crate with a craftsman config, cached at a
+/// stable temp path (its `target/` survives across runs so clippy stays
+/// warm). `bad_fmt` seeds one `cargo fmt` finding in `src/lib.rs` line 1;
+/// `with_git` makes it a fresh single-commit repository with `target/` and
+/// `.craftsman/` ignored (a clean tree, as the gate cache requires).
+fn scaffold_gate_fixture(
+    w: &mut CliWorld,
+    dir_name: &str,
+    bad_fmt: bool,
+    lint_mode: &str,
+    with_git: bool,
+) {
+    let dir = std::env::temp_dir().join(dir_name);
+    std::fs::create_dir_all(dir.join("src")).expect("mkdirs");
+    let write = |name: &str, content: &str| {
+        std::fs::write(dir.join(name), content)
+            .unwrap_or_else(|e| panic!("write {name} in {}: {e}", dir.display()));
+    };
+    write(
+        "Cargo.toml",
+        "[package]\nname = \"gatefix\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        "src/lib.rs",
+        if bad_fmt {
+            "pub fn f( x:i32)->i32{ x+1 }\n"
+        } else {
+            "pub fn f(x: i32) -> i32 {\n    x + 1\n}\n"
+        },
+    );
+    write(
+        "craftsman.toml",
+        &format!(
+            "[project]\nname = \"gatefix\"\nstacks = [\"rust\"]\n\n[gates]\nlint = \"{lint_mode}\"\n"
+        ),
+    );
+    // Cargo.lock is ignored deliberately: the first clippy run generates
+    // it, and an untracked lockfile appearing mid-run would change the
+    // gate-cache key between the first and second check-all.
+    write(".gitignore", "target/\n.craftsman/\nCargo.lock\n");
+    // Fresh gate state on every scenario run: no stale baselines or caches.
+    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    if with_git {
+        for args in [
+            &["init", "--quiet"][..],
+            &["add", "-A"][..],
+            &[
+                "-c",
+                "user.name=fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "init",
+            ][..],
+        ] {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(&dir)
+                .status()
+                .expect("spawn git");
+            assert!(status.success(), "git {args:?} failed in {}", dir.display());
+        }
+    }
+    w.fixed_dir = Some(dir);
+}
+
+#[given("a rust gate fixture with a seeded formatting finding")]
+fn gate_fixture_with_finding(w: &mut CliWorld) {
+    scaffold_gate_fixture(
+        w,
+        "craftsman-spec-lint-finding-fixture",
+        true,
+        "strict",
+        false,
+    );
+}
+
+#[given("a rust gate fixture with a seeded finding and the lint gate in baseline mode")]
+fn gate_fixture_baseline_mode(w: &mut CliWorld) {
+    scaffold_gate_fixture(
+        w,
+        "craftsman-spec-lint-baseline-fixture",
+        true,
+        "baseline",
+        false,
+    );
+}
+
+#[given("a second rust gate fixture with a seeded finding and the lint gate in baseline mode")]
+fn gate_fixture_baseline_mode_second(w: &mut CliWorld) {
+    scaffold_gate_fixture(
+        w,
+        "craftsman-spec-gate-strict-fixture",
+        true,
+        "baseline",
+        false,
+    );
+}
+
+#[given("a clean rust gate fixture under git with the lint gate strict")]
+fn gate_fixture_clean_git(w: &mut CliWorld) {
+    scaffold_gate_fixture(
+        w,
+        "craftsman-spec-gate-cache-fixture",
+        false,
+        "strict",
+        true,
+    );
+}
+
+#[given("its lint baseline has been recorded")]
+fn lint_baseline_recorded(w: &mut CliWorld) {
+    w.run_craftsman(&["gate", "baseline", "lint"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "gate baseline lint must pass:\n{}",
+        w.combined_output()
+    );
+}
+
+#[when("I run craftsman check-all twice")]
+fn run_check_all_twice(w: &mut CliWorld) {
+    w.run_craftsman(&["check-all"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming check-all must pass:\n{}",
+        w.combined_output()
+    );
+    w.run_craftsman(&["check-all"]);
+}
+
 #[given("an empty project directory")]
 fn empty_project_directory(w: &mut CliWorld) {
     let _ = w.project_dir();
