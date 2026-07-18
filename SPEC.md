@@ -708,3 +708,12 @@ Feature: Craftsman CLI core
     When I run craftsman docs get for that page
     Then the exit code is 0
     And the output contains the page's content
+
+  # ————— GAP-R10 (decided by the human 2026-07-18) —————
+
+  Scenario: A filtered verify run merges into the recorded verdicts
+    Given a two-scenario project with a recorded green verify run
+    When one scenario is re-verified alone
+    And I run craftsman with "spec status"
+    Then the exit code is 0
+    And both scenarios still report a recorded pass

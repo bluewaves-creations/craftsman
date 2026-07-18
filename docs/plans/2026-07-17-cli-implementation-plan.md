@@ -332,3 +332,18 @@ Success: craftsman verify exits 0 with the three merged scenarios green; craftsm
 *(Boundary close-out 2026-07-18 — success line MET on this repo's side: [gates.qa.<name>] parsed (strict-only by construction), qa gates run inside check-all after the static set — uncached, fail-fast, exit-127 distinguished as the misdeclared-gate exit-3 — and therefore inside the commit gate and Verified-by trailer (GateSummary.gate widened to String for the dynamic qa:<name> rows). Three scenarios merged — verify 50 green / 1 network-gated; SPEC.delta.md fully merged and deleted. The craftsman-web conversion proof is dogfood Phase D6, after this release.)*
 
 *(Release close-out 2026-07-18 — v0.4.0 SHIPPED: tag cut after CI green on the first attempt; release workflow green, 11 assets. Second live download-leg proof: the installed v0.3.0 ran `craftsman update` and reported updated 0.3.0 → 0.4.0; second run up-to-date; doctor 6/6 from the installed binary. Live @requires-network scenario green under CRAFTSMAN_LIVE=1; full verify restored the 50-green record. The self-update loop is now routine, not an event. Next: dogfood Phase D6 — craftsman-web re-enters through `craftsman import` and converts bun run qa into [gates.qa].)*
+
+## Batch 17 — Filtered verify merges per scenario (GAP-R10, decided 2026-07-18)
+
+*(the design decision the R10 pin anchored, approved by the human: a filtered run merges its verdicts into the recorded run instead of replacing it. Same-head only — when HEAD moved since the previous record, the new run replaces it outright, so verdicts from different HEADs never mix; the Batch 9b concern that originally ruled merging out is honored by the guard instead of by replacement.)*
+
+Scenarios:
+- A filtered verify run merges into the recorded verdicts
+
+Tasks:
+- Flip the R10 characterization pin to the approved behavior (failing first), then merge in `record::persist`: fold previous same-head verdicts for scenarios the new run did not include; recompute the recorded outcome from the merged set
+- Wire the promise as a spec scenario
+
+Success: craftsman verify --scenario "A filtered verify run merges into the recorded verdicts" exits 0
+
+*(Boundary close-out 2026-07-18 — success line MET: pin flipped red-first (`filtered_verify_merges_per_scenario_into_the_record`), merge implemented in record.rs with the same-head guard and the module doc updated to record the superseded Batch 9b decision; scenario wired and green; all four orchestration pins green.)*

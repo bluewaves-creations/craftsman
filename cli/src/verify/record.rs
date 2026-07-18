@@ -2,11 +2,13 @@
 //!
 //! Every `craftsman verify` run persists its normalized results here
 //! (single-writer: only the CLI writes it), so `spec status` can show real
-//! verdicts instead of "unknown". The record is the **whole last run**,
-//! overwritten each time: a filtered run (`--scenario`, `--batch`,
-//! `--impact`) records only what it ran — scenarios absent from the record
-//! read as unknown until the next full run (decided Batch 9b: per-scenario
-//! merge across runs would mix verdicts from different HEADs).
+//! verdicts instead of "unknown". A filtered run (`--scenario`, `--batch`,
+//! `--impact`) merges per scenario into the previous record — scenarios it
+//! did not run keep their recorded verdicts (GAP-R10, decided by the human
+//! 2026-07-18). The merge is same-head only: when HEAD moved since the
+//! previous record, the new run replaces it outright, so verdicts from
+//! different HEADs never mix (the Batch 9b concern that originally ruled
+//! merging out stays honored by the guard instead).
 
 use std::path::Path;
 use std::process::Command;
@@ -86,9 +88,48 @@ pub fn from_report(root: &Path, report: &Report) -> LastVerify {
 /// Persist a finished run, downgrading write failure to a stderr warning
 /// (a read-only filesystem must not turn a green verify red).
 pub fn persist(root: &Path, report: &Report) {
-    if let Err(err) = save(root, &from_report(root, report)) {
+    let mut record = from_report(root, report);
+    if let Some(previous) = load(root) {
+        merge_previous(&mut record, previous);
+    }
+    if let Err(err) = save(root, &record) {
         eprintln!("warning: could not write {REL_PATH} ({err})");
     }
+}
+
+/// Fold the previous record's verdicts into `record` for every scenario
+/// the new run did not include — same-head only; a moved (or unknowable)
+/// HEAD means the previous verdicts describe a different tree and the new
+/// run replaces them. The recorded outcome then reflects the merged set.
+fn merge_previous(record: &mut LastVerify, previous: LastVerify) {
+    if record.head == "unknown" || previous.head != record.head {
+        return;
+    }
+    for prev_stack in previous.stacks {
+        let Some(stack) = record
+            .stacks
+            .iter_mut()
+            .find(|s| s.stack == prev_stack.stack)
+        else {
+            record.stacks.push(prev_stack);
+            continue;
+        };
+        for result in prev_stack.results {
+            if !stack.results.iter().any(|r| r.scenario == result.scenario) {
+                stack.results.push(result);
+            }
+        }
+    }
+    let all_pass = record
+        .stacks
+        .iter()
+        .flat_map(|s| &s.results)
+        .all(|r| r.status == Status::Passed);
+    record.outcome = if all_pass {
+        Outcome::Passed
+    } else {
+        Outcome::Failed
+    };
 }
 
 /// Persist the record (creating `.craftsman/cache/`).

@@ -131,13 +131,13 @@ fn verify_batch_warns_on_plan_drift_and_runs_the_found_subset() {
     );
 }
 
-/// GAP-R10 pin (observed live 2026-07-18): a filtered verify run replaces
-/// the entire recorded run — after `verify --scenario X`, spec status
-/// reports every other scenario unknown until a full run re-records them.
-/// Pinned as-is; whether records should merge per scenario is a separate
-/// decision.
+/// GAP-R10, decided by the human 2026-07-18: a filtered verify run merges
+/// per scenario into the recorded run — after `verify --scenario X`, the
+/// other scenarios keep their recorded verdicts. Same-head only: verdicts
+/// from different HEADs never mix (the Batch 9b concern that originally
+/// ruled merging out stays honored by the guard, not by replacement).
 #[test]
-fn filtered_verify_replaces_the_whole_recorded_run() {
+fn filtered_verify_merges_per_scenario_into_the_record() {
     let _guard = FIXTURE.lock().expect("fixture lock");
     let dir = fixture();
     assert_exit(&craftsman(&dir, &["verify"]), 0);
@@ -177,8 +177,8 @@ fn filtered_verify_replaces_the_whole_recorded_run() {
     assert!(
         after
             .iter()
-            .any(|(name, st)| name == "The loop closes again" && st == "unknown"),
-        "the filtered run replaces the record — the other scenario is \
-         forgotten (current behavior, pinned): {after:?}"
+            .any(|(name, st)| name == "The loop closes again" && st == "passed"),
+        "the filtered run merges into the record — the other scenario \
+         keeps its same-head verdict: {after:?}"
     );
 }

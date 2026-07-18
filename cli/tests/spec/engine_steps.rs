@@ -27,6 +27,57 @@ fn project_with_recorded_run(w: &mut CliWorld) {
     );
 }
 
+#[given("a two-scenario project with a recorded green verify run")]
+fn two_scenario_recorded_project(w: &mut CliWorld) {
+    let dir = std::env::temp_dir().join("craftsman-spec-r10-fixture");
+    let spec = "Feature: Merge fixture\n\n  Scenario: The loop closes\n    Given a truth\n    Then it holds\n\n  Scenario: The loop closes again\n    Given a truth\n    Then it holds\n";
+    craftsman::doctor::scaffold_rust_fixture(&dir, spec, true)
+        .unwrap_or_else(|e| panic!("scaffold merge fixture: {e}"));
+    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
+        .expect("write .gitignore");
+    crate::repo_steps::git_init_commit_all(&dir);
+    w.fixed_dir = Some(dir);
+    w.run_craftsman(&["verify"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming verify must pass:\n{}",
+        w.combined_output()
+    );
+}
+
+#[when("one scenario is re-verified alone")]
+fn one_scenario_reverified(w: &mut CliWorld) {
+    w.run_craftsman(&["verify", "--scenario", "The loop closes"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "the filtered run must pass:\n{}",
+        w.combined_output()
+    );
+}
+
+#[then("both scenarios still report a recorded pass")]
+fn both_scenarios_report_pass(w: &mut CliWorld) {
+    let combined = w.combined_output();
+    let row_passes = |wanted: &dyn Fn(&str) -> bool| {
+        combined
+            .lines()
+            .filter(|l| wanted(l))
+            .any(|l| l.contains("pass"))
+    };
+    assert!(
+        row_passes(&|l: &str| l.contains("The loop closes again")),
+        "the un-run scenario must keep its verdict:\n{combined}"
+    );
+    assert!(
+        row_passes(&|l: &str| l.contains("The loop closes") && !l.contains("again")),
+        "the re-run scenario must be recorded:\n{combined}"
+    );
+}
+
 #[given("a commit has moved the repository head since that run")]
 fn commit_moves_head(w: &mut CliWorld) {
     let dir = w.project_dir();
