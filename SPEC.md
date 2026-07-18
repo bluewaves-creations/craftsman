@@ -240,6 +240,26 @@ Feature: Craftsman CLI core
     Then the exit code is 0
     And the reported version afterwards equals the latest release version
 
+  Scenario: Verify refuses a typescript project whose runner is not installed
+    Given a typescript project that does not have the cucumber-js runner installed
+    When I run craftsman with "verify"
+    Then the exit code is 3
+    And the output contains "@cucumber/cucumber"
+    And the project lockfile is unchanged
+
+  Scenario: Commit creates the first commit of a fresh repository
+    Given a green craftsman project whose repository has no commits yet
+    When I run craftsman commit for the staged tree
+    Then the exit code is 0
+    And the repository's only commit carries a Verified-by trailer
+
+  Scenario: Init scaffolds a feature spec for the typescript stack
+    Given an empty git repository directory
+    When I run craftsman with "init --name web --stack typescript"
+    Then the exit code is 0
+    And the scaffold includes "features/web.feature"
+    And the configured spec path ends with ".feature"
+
   Scenario: Adopt enforces phase ordering
     Given an empty git repository directory
     When I run craftsman with "adopt --start-phase 2"

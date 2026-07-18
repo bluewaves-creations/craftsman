@@ -1,6 +1,6 @@
 # SPEC delta — dogfood harvest: verdict-path fixes, environment honesty, import, qa gates
 
-PROPOSED 2026-07-18 — awaiting human approval. ADDED scenarios against
+APPROVED by the human 2026-07-18. ADDED scenarios against
 current SPEC.md truth, drafted from the craftsman-web dogfood ledger
 (`../craftsman-web/docs/dogfood/ledger.md`) and ADR-006. Batches 13–14
 scenarios pin defect fixes and can be wired as soon as this delta is
@@ -10,27 +10,7 @@ the executed spec stays intact.
 
 ## Batch 13 — verdict-path fixes
 
-```gherkin
-Scenario: Verify refuses a typescript project whose runner is not installed
-  Given a typescript project that does not have the cucumber-js runner installed
-  When I run craftsman with "verify"
-  Then the exit code is 3
-  And the output contains "@cucumber/cucumber"
-  And the project lockfile is unchanged
-
-Scenario: Commit creates the first commit of a fresh repository
-  Given a green craftsman project whose repository has no commits yet
-  When I run craftsman commit for the staged tree
-  Then the exit code is 0
-  And the repository's only commit carries a Verified-by trailer
-
-Scenario: Init scaffolds a feature spec for the typescript stack
-  Given an empty git repository
-  When I run craftsman with "init --name web --stack typescript"
-  Then the exit code is 0
-  And the scaffold includes "features/web.feature"
-  And the configured spec path ends with ".feature"
-```
+*(merged into SPEC.md at the Batch 13 boundary, 2026-07-18)*
 
 ## Batch 14 — environment honesty
 

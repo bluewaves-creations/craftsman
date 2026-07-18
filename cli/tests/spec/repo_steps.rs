@@ -243,3 +243,84 @@ fn stdout_is_json_with_scenarios(w: &mut CliWorld, count: usize) {
     let scenarios = doc["scenarios"].as_array().expect("a `scenarios` array");
     assert_eq!(scenarios.len(), count, "in:\n{stdout}");
 }
+
+/// A verify-green fixture whose repository has `HEAD` unborn: fresh
+/// `git init`, everything staged, no commit yet (ledger finding 6).
+#[given("a green craftsman project whose repository has no commits yet")]
+fn green_project_with_unborn_head(w: &mut CliWorld) {
+    crate::project_steps::scaffold_green_fixture(w, "craftsman-spec-first-commit-fixture");
+    let dir = w.project_dir();
+    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
+        .expect("write .gitignore");
+    for args in [
+        &["init", "--quiet"][..],
+        &["config", "user.name", "fixture"][..],
+        &["config", "user.email", "fixture@example.invalid"][..],
+        &["add", "-A"][..],
+    ] {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn git");
+        assert!(status.success(), "git {args:?} failed in {}", dir.display());
+    }
+}
+
+#[when("I run craftsman commit for the staged tree")]
+fn run_commit_for_staged_tree(w: &mut CliWorld) {
+    w.run_craftsman(&[
+        "commit",
+        "--type",
+        "chore",
+        "--message",
+        "bring the tree under craftsman",
+    ]);
+}
+
+#[then("the repository's only commit carries a Verified-by trailer")]
+fn only_commit_carries_verified_by(w: &mut CliWorld) {
+    let dir = w.project_dir();
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .expect("spawn git");
+        assert!(out.status.success(), "git {args:?} failed");
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    assert_eq!(
+        git(&["rev-list", "--count", "HEAD"]).trim(),
+        "1",
+        "expected exactly one commit"
+    );
+    let body = git(&["log", "-1", "--format=%B"]);
+    assert!(
+        body.contains("Verified-by:"),
+        "first commit must carry the CLI-written trailer:\n{body}"
+    );
+}
+
+#[then(expr = "the scaffold includes {string}")]
+fn scaffold_includes(w: &mut CliWorld, rel: String) {
+    let path = w.project_dir().join(&rel);
+    assert!(path.is_file(), "{} was not scaffolded", path.display());
+}
+
+#[then(expr = "the configured spec path ends with {string}")]
+fn configured_spec_path_ends_with(w: &mut CliWorld, suffix: String) {
+    let config = std::fs::read_to_string(w.project_dir().join("craftsman.toml"))
+        .expect("scaffolded craftsman.toml");
+    let spec = config
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("spec = "))
+        .expect("config declares a spec path")
+        .trim_matches('"')
+        .to_owned();
+    assert!(
+        spec.ends_with(&suffix),
+        "configured spec {spec:?} does not end with {suffix:?}"
+    );
+}

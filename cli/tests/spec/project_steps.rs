@@ -131,6 +131,12 @@ fn scaffolded_green_project(w: &mut CliWorld) {
     scaffold_fixture(w, "craftsman-spec-impact-fixture", GREEN_FIXTURE_SPEC);
 }
 
+/// A green cucumber fixture at `dir_name` for steps outside this module
+/// (e.g. the unborn-HEAD first-commit scenario in `repo_steps`).
+pub fn scaffold_green_fixture(w: &mut CliWorld, dir_name: &str) {
+    scaffold_fixture(w, dir_name, GREEN_FIXTURE_SPEC);
+}
+
 #[given("a scaffolded rust project with a recorded green verify run")]
 fn scaffolded_recorded_project(w: &mut CliWorld) {
     scaffold_fixture(w, "craftsman-spec-status-fixture", GREEN_FIXTURE_SPEC);
@@ -288,4 +294,33 @@ fn run_check_all_twice(w: &mut CliWorld) {
         w.combined_output()
     );
     w.run_craftsman(&["check-all"]);
+}
+
+/// The ts-todo fixture, copied minus `node_modules` — a typescript project
+/// whose declared runner is not installed (craftsman-web ledger finding 2).
+#[given("a typescript project that does not have the cucumber-js runner installed")]
+fn ts_project_without_runner(w: &mut CliWorld) {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ts-todo");
+    let dir = w.project_dir();
+    for rel in [
+        "craftsman.toml",
+        "package.json",
+        "bun.lock",
+        "features/todo.feature",
+        "features/step_definitions/steps.mjs",
+        "src/calc.ts",
+    ] {
+        let dst = dir.join(rel);
+        std::fs::create_dir_all(dst.parent().expect("parent")).expect("mkdirs");
+        std::fs::copy(src.join(rel), &dst).unwrap_or_else(|e| panic!("copy {rel}: {e}"));
+    }
+}
+
+#[then("the project lockfile is unchanged")]
+fn project_lockfile_unchanged(w: &mut CliWorld) {
+    let src =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ts-todo/bun.lock");
+    let reference = std::fs::read(src).expect("reference lockfile");
+    let actual = std::fs::read(w.project_dir().join("bun.lock")).expect("project lockfile");
+    assert_eq!(reference, actual, "the verdict path mutated bun.lock");
 }

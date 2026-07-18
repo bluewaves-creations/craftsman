@@ -275,6 +275,8 @@ Tasks:
 
 Success: craftsman verify exits 0 with the three merged scenarios green; cargo test green; re-run of install.sh exits 0
 
+*(Boundary close-out 2026-07-18 — success line MET except the install.sh re-run, which by design waits for the v0.3.0 redeploy: four fix commits (1f3aedb bunx→preflighted bun run, 79e6c06 unborn-HEAD empty-tree fallback, 15b554f typescript .feature scaffold, 44ce79f installer --force), each with its failing-first root-cause test where a harness exists. The bunx red run reproduced the dependency-confusion stub live: the registry's `cucumber-js` placeholder executes and exits 0. Delta approved by the human; the three scenarios wired and merged — verify 41 green / 1 network-gated. Second latent defect found while fixing: bun executing the runner's script file directly loads no .mjs step definitions; `bun run` does.)*
+
 ## Batch 14 — Environment honesty (doctor + baseline UX)
 
 *(scaffolded 2026-07-18 from ledger findings 4 and 4b: a fresh machine silently cannot run gates whose pinned tools are absent — doctor checks only git and cargo (doctor.rs:220) — and a baseline-mode gate blocks on inherited findings without naming the `gate baseline` move that resolves it.)*
