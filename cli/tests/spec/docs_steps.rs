@@ -178,6 +178,77 @@ fn old_copy_gone(w: &mut CliWorld) {
     assert!(!dir.exists(), "{} survived the promotion", dir.display());
 }
 
+/// A local sphinx-style site for the objects-inv on-demand scenario: a
+/// real zlib `objects.inv` plus the one page it indexes (mirrors
+/// `tests/docs_objects_inv.rs`, the GAP-R08 root-cause harness).
+fn build_objects_inv_site(dir: &std::path::Path) {
+    use std::io::Write as _;
+    std::fs::create_dir_all(dir).expect("site dir");
+    let header = b"# Sphinx inventory version 2\n# Project: mylib\n# Version: 1.0\n# The remainder of this file is compressed using zlib.\n";
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder
+        .write_all(b"mylib.core py:module 1 core.html -\n")
+        .expect("compress");
+    let payload = encoder.finish().expect("zlib");
+    let mut inv = header.to_vec();
+    inv.extend(payload);
+    std::fs::write(dir.join("objects.inv"), inv).expect("inventory");
+    std::fs::write(
+        dir.join("core.html"),
+        "<html><body><h1>Core</h1><p>The core module holds the truth.</p></body></html>",
+    )
+    .expect("page");
+}
+
+#[given("a synced objects-inv library whose page was fetched on demand once")]
+fn synced_objects_inv_with_on_demand_page(w: &mut CliWorld) {
+    bare_project(w);
+    let site = w.project_dir().join("site");
+    build_objects_inv_site(&site);
+    let url = format!("file://{}/objects.inv", site.display());
+    for args in [
+        vec![
+            "docs",
+            "add",
+            "mylib",
+            "--source",
+            "objects-inv",
+            "--url",
+            &url,
+        ],
+        vec!["docs", "sync"],
+        vec!["docs", "get", "mylib/mylib.core"],
+    ] {
+        w.run_craftsman(&args);
+        assert_eq!(
+            w.output().status.code(),
+            Some(0),
+            "priming {args:?} must pass:\n{}",
+            w.combined_output()
+        );
+    }
+}
+
+#[given("the page's source has since disappeared")]
+fn page_source_disappeared(w: &mut CliWorld) {
+    let page = w.project_dir().join("site/core.html");
+    std::fs::remove_file(&page).unwrap_or_else(|e| panic!("delete {}: {e}", page.display()));
+}
+
+#[when("I run craftsman docs get for that page")]
+fn run_docs_get_for_page(w: &mut CliWorld) {
+    w.run_craftsman(&["docs", "get", "mylib/mylib.core"]);
+}
+
+#[then("the output contains the page's content")]
+fn output_contains_page_content(w: &mut CliWorld) {
+    let combined = w.combined_output();
+    assert!(
+        combined.contains("The core module holds the truth"),
+        "the cached page content must print:\n{combined}"
+    );
+}
+
 /// A live llms-txt-style index whose links really are per-page `.md`
 /// files — the cucumber-rs book's SUMMARY.md, the same source this
 /// repository's own docs table declares. (hono.dev/llms.txt, the other

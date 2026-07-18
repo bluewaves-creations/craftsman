@@ -212,6 +212,17 @@ fn diff_touches_nothing_covered(w: &mut CliWorld) {
     w.write("README.md", "# uncovered file\n");
 }
 
+#[given("a scaffolded rust project with a recorded green verify run and a clean tree")]
+fn scaffolded_recorded_clean_project(w: &mut CliWorld) {
+    crate::project_steps::scaffold_green_fixture(w, "craftsman-spec-impact-empty-fixture");
+    let dir = w.project_dir();
+    let _ = std::fs::remove_dir_all(dir.join(".git"));
+    std::fs::write(dir.join(".gitignore"), "target/\n.craftsman/\nCargo.lock\n")
+        .expect("write .gitignore");
+    crate::repo_steps::git_init_commit_all(&dir);
+    prime_full_verify(w);
+}
+
 #[then(expr = "the scenario {string} runs")]
 fn named_scenario_runs(w: &mut CliWorld, name: String) {
     let combined = w.combined_output();
