@@ -152,15 +152,14 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     validate_stacks(&config)?;
 
     let feature = spec::parse_spec(&root.join(&config.project.spec))?;
-    let names: Vec<String> = spec::inventory(&feature)
-        .into_iter()
-        .map(|e| e.scenario)
-        .collect();
+    let entries = spec::inventory(&feature);
+    let gate = selection::NetworkGate::from_inventory(&entries);
+    let names: Vec<String> = entries.into_iter().map(|e| e.scenario).collect();
 
     // Resolve the selection against the spec inventory first: a filter that
     // cannot match anything is exit 4 without ever invoking a runner.
     let mut warnings = Vec::new();
-    let filter = match resolve_selection(selection, &config, &root, &names, &mut warnings)? {
+    let filter = match resolve_selection(selection, &config, &root, &names, &gate, &mut warnings)? {
         Resolved::Finished(report) => return Ok(report),
         Resolved::Filter(filter) => filter,
     };

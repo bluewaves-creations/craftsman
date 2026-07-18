@@ -100,11 +100,14 @@ impl CliWorld {
 /// explicitly granted (`CRAFTSMAN_LIVE=1`). Excluded scenarios emit no
 /// result at all, so `spec status` reports them as unknown — visible,
 /// never silently green.
-fn scenario_filter(
-    _f: &cucumber::gherkin::Feature,
-    _r: Option<&cucumber::gherkin::Rule>,
-    s: &cucumber::gherkin::Scenario,
-) -> bool {
+///
+/// TRAP (cucumber 0.23, cucumber.rs `filter_run`): when a `--name` regex
+/// is present in the CLI opts, cucumber consults ONLY the regex and never
+/// calls the programmatic filter. The gate must therefore compose the
+/// regex itself: `main` takes `re_filter` out of the parsed opts and this
+/// filter applies both, so a name-filtered run can never force a gated
+/// scenario live.
+fn scenario_gate(s: &cucumber::gherkin::Scenario) -> bool {
     std::env::var("CRAFTSMAN_LIVE").is_ok_and(|v| v == "1")
         || !s.tags.iter().any(|t| t == "requires-network")
 }
@@ -118,12 +121,32 @@ async fn main() {
     if let Ok(path) = std::env::var("CRAFTSMAN_JSON") {
         // craftsman verify is driving: write cucumber-json where told.
         let file = std::fs::File::create(&path).unwrap_or_else(|e| panic!("create {path}: {e}"));
+        let mut opts = cucumber::cli::Opts::<
+            cucumber::parser::basic::Cli,
+            cucumber::runner::basic::Cli,
+            cucumber::cli::Empty,
+        >::parsed();
+        let name_re = opts.re_filter.take();
         CliWorld::cucumber()
             .with_writer(cucumber::writer::Json::new(file))
-            .filter_run(spec, scenario_filter)
+            .with_cli(opts)
+            .filter_run(spec, move |_, _, s| {
+                scenario_gate(s) && name_re.as_ref().is_none_or(|re| re.is_match(&s.name))
+            })
             .await;
     } else {
         // Direct `cargo test --test spec`: human output, non-zero on red.
-        CliWorld::filter_run(spec, scenario_filter).await;
+        let mut opts = cucumber::cli::Opts::<
+            cucumber::parser::basic::Cli,
+            cucumber::runner::basic::Cli,
+            cucumber::writer::basic::Cli,
+        >::parsed();
+        let name_re = opts.re_filter.take();
+        CliWorld::cucumber()
+            .with_cli(opts)
+            .filter_run_and_exit(spec, move |_, _, s| {
+                scenario_gate(s) && name_re.as_ref().is_none_or(|re| re.is_match(&s.name))
+            })
+            .await;
     }
 }
