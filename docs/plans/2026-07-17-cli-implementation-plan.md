@@ -101,10 +101,21 @@ Scenarios:
 - Spec gen writes a generated header
 - Spec gen never overwrites step implementations
 
-## Batch 6 — Gates, baselines, check-all
+## Batch 6a — Gate framework, lint, security, baselines, check-all
+*(split from Batch 6 at the Batch 5 boundary — one reviewable scope per batch)*
 
-- [ ] Declarative gate adapter format (the design doc's open item #2 — designed here against the first three tools); `lint` (ruff/biome/clippy/swiftlint/shellcheck), `security` (gitleaks/semgrep/osv-scanner), hermetic tool installs into `~/.craftsman/tools/`.
-- [ ] `gate baseline|strict|status`: native wraps (SwiftLint/ESLint/Semgrep) + unified snapshot for the rest; auto-ratchet + prune.
+- [x] Declarative gate adapter format (design doc open item #2 — designed against the first three tools); `lint` (ruff/biome/clippy/swiftlint/shellcheck via bunx/uvx where applicable), `security` (gitleaks/semgrep/osv-scanner), hermetic tool installs into `~/.craftsman/tools/`.
+- [x] `gate baseline|strict|status`: native wraps (SwiftLint/Semgrep) + unified snapshot for the rest; auto-ratchet + prune.
+- [x] `check-all [--changed]` with file-hash cache; `craftsman commit` switches from hardcoded fmt/clippy to the configured gate set via check-all --changed.
+- Notes: adapters are const data (`gates/adapter.rs::TOOLS`) + one parser fn per tool; uvx/bunx ARE the hermetic runners for ruff/semgrep/biome (zero install state), binary downloads only for gitleaks/osv-scanner/swiftlint/shellcheck (sha256 recorded in a local manifest, changed artifacts refused). semgrep pin moved 1.130.0 → 1.146.0 (1.130.0 broken under uv's setuptools — no pkg_resources); its verdict path runs offline against the registry `p/default` ruleset fetched once per pin, because `--config auto` needs the network every run. osv-scanner uses offline databases (~243MB, first use). Ratchets only run on full (unfiltered) runs and only over tools that actually ran; snapshot intersection inherently prunes gone-file fingerprints. Dogfood: `[gates] security = "baseline"` recorded 2 honest findings (RUSTSEC-2026-0194/0195, quick-xml in the S2 spike fixture lockfile) — fix-work for later, not this batch. semgrep's `--baseline-commit` verified working on a dirty tree, so commit-time diff-aware scans hold.
+
+Scenarios:
+- Lint reports findings with file and line
+- Gate baseline then rerun goes green
+- Gate strict refuses while the baseline is nonempty
+- Check-all skips an unchanged clean gate via the cache
+
+## Batch 6b — Mutate, health, arch, runtime gates
 - [ ] `check-all` with file-hash cache; `mutate` (cargo-mutants/mutmut/Stryker, diff-scoped); `health` (complexity/size/duplication metrics — own implementation, thresholds in toml); `arch` v1 (import-direction rules for rust+swift via syn/swift-syntax parsing — the no-incumbent gap; `perf`/`a11y`/`visual` orchestrate lhci/axe/Playwright configs).
 
 ## Batch 7 — Docs pipeline + extract + adr

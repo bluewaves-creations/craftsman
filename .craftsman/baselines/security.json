@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "gate": "security",
+  "recorded_at": "2026-07-18T01:20:14Z",
+  "semgrep": {
+    "ref": "f197424c29318eb7a5388770a809043ec9ff0741",
+    "count": 0
+  },
+  "fingerprints": [
+    {
+      "tool": "osv-scanner",
+      "rule": "RUSTSEC-2026-0194",
+      "file": "spikes/s2-normalizer/samples/rust-todo/Cargo.lock",
+      "hash": "64f59ea156dcf447"
+    },
+    {
+      "tool": "osv-scanner",
+      "rule": "RUSTSEC-2026-0195",
+      "file": "spikes/s2-normalizer/samples/rust-todo/Cargo.lock",
+      "hash": "2aee6d3696c881aa"
+    }
+  ]
+}

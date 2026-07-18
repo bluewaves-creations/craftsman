@@ -13,6 +13,12 @@ cwd = "cli"
 [gates]
 verify = "strict"
 lint = "strict"
+security = "baseline"
+
+[gates.tools]
+gitleaks = "8.24.0"
+semgrep = "1.146.0"
+osv-scanner = "2.4.0"
 
 [ledger]
 co-author = "Claude Fable 5 <noreply@anthropic.com>"
