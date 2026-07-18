@@ -102,6 +102,45 @@ pub fn suite_name(feature_name: &str) -> String {
     }
 }
 
+/// The Swift Testing signature of a scenario's generated `@Test` function.
+///
+/// The mandatory suffix of the xcodebuild `-only-testing:` identifier
+/// (verified empirically: the selector silently matches 0 tests without
+/// it). Empty for plain scenarios; the argument-label form
+/// (`"quantity:reason:"`) for outlines with ≤2 Examples columns
+/// (destructured parameters); `"_:"` for 3+ columns (one `row` tuple —
+/// see [`generate`]). `None` when no such scenario exists in the feature.
+///
+/// # Errors
+/// [`GenError::MixedExampleHeaders`] when the outline's Examples tables
+/// disagree on headers.
+pub fn test_signature(
+    feature: &gherkin::Feature,
+    scenario_name: &str,
+) -> Result<Option<String>, GenError> {
+    let scenario = feature
+        .scenarios
+        .iter()
+        .chain(feature.rules.iter().flat_map(|r| r.scenarios.iter()))
+        .find(|s| s.name == scenario_name);
+    let Some(scenario) = scenario else {
+        return Ok(None);
+    };
+    let signature = example_table(scenario)?.map_or_else(String::new, |table| {
+        let params = typed_params(&table);
+        if params.len() <= 2 {
+            params.iter().fold(String::new(), |mut out, p| {
+                out.push_str(&param_name(&p.header));
+                out.push(':');
+                out
+            })
+        } else {
+            "_:".to_owned()
+        }
+    });
+    Ok(Some(signature))
+}
+
 /// Generate the runner file and step stub template for a linted feature.
 ///
 /// # Errors
@@ -406,6 +445,26 @@ Feature: Todo management
         assert!(
             r.contains("try steps.step_i_set_the_quantity_to(quantity)"),
             "{r}"
+        );
+    }
+
+    #[test]
+    fn test_signatures_match_the_generated_functions() {
+        let f = todo_feature();
+        assert_eq!(
+            test_signature(&f, "Adding a todo shows it in the list").expect("no header clash"),
+            Some(String::new()),
+            "plain scenarios have the empty signature"
+        );
+        assert_eq!(
+            test_signature(&f, "Rejecting an invalid quantity keeps the cart unchanged")
+                .expect("no header clash"),
+            Some("quantity:reason:".to_owned()),
+            "≤2 columns destructure into labeled parameters"
+        );
+        assert_eq!(
+            test_signature(&f, "No such scenario").expect("no header clash"),
+            None
         );
     }
 

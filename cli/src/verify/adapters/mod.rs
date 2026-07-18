@@ -1,14 +1,16 @@
 //! Per-stack runner adapters.
 //!
 //! Batch 2 shipped the rust stack (cucumber-rs); Batch 4 added python
-//! (pytest-bdd) and typescript (cucumber-js); Batch 5 adds the code-gen
-//! stacks: swift (swift-testing) and bash (bats).
+//! (pytest-bdd) and typescript (cucumber-js); Batch 5 added the code-gen
+//! stacks: swift (swift-testing) and bash (bats); Batch 9a adds the Apple
+//! variant of the swift stack (xcodebuild + xcresulttool).
 
 pub mod bats;
 pub mod cucumber_js;
 pub mod cucumber_rs;
 pub mod pytest_bdd;
 pub mod swift_testing;
+pub mod xcodebuild;
 
 use std::path::PathBuf;
 
@@ -50,8 +52,6 @@ pub enum AdapterError {
     },
     #[error(transparent)]
     Normalize(#[from] NormalizeError),
-    #[error("{detail}")]
-    Unsupported { detail: String },
 }
 
 /// Last `lines` lines of a runner's output, for failure details.

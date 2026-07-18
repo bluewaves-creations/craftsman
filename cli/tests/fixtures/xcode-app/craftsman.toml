@@ -1,0 +1,17 @@
+# Batch 9a fixture: the xcodebuild adapter's committed test bed.
+# PROBED REALITY (Xcode 26.6): xcodebuild tests the SwiftPM package's
+# synthesized scheme directly (`xcodebuild -list` shows it) — no .xcodeproj
+# needed, so this fixture is a plain package. `scheme` below is what routes
+# verify through xcodebuild instead of `swift test`. Scheme naming (also
+# probed): a package WITH products gets one scheme per product (the S1
+# spike's is "SpecSpike"); a package without products gets only the
+# synthesized "<name>-Package" scheme — `xcodebuild -list` shows it.
+[project]
+name = "xcode-app"
+stacks = ["swift"]
+
+[verify.swift]
+scheme = "XcodeApp-Package"
+# destination defaults to platform=macOS (simulator-less; documented in the
+# xcodebuild adapter).
+swift-tests-dir = "Tests/XcodeAppTests"

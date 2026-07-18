@@ -267,9 +267,12 @@ pub struct VerifyStack {
     /// `cwd`. Default: `tests`. Bash only.
     pub bats_dir: Option<String>,
     /// xcodebuild variant (swift-apple): presence of `scheme` selects
-    /// `xcodebuild test` over `swift test`. Not yet supported — verify
-    /// errors clearly rather than half-running (Batch 5 honest-undone).
+    /// `xcodebuild test` over `swift test` (Batch 9a). For a `SwiftPM`
+    /// package this is the synthesized package scheme (`xcodebuild -list`).
+    /// Swift only.
     pub scheme: Option<String>,
+    /// xcodebuild `-destination`; defaults to `platform=macOS` so
+    /// simulator-less runs work. Swift only, with `scheme`.
     pub destination: Option<String>,
 }
 

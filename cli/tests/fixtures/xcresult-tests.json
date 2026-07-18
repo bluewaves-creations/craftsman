@@ -1,0 +1,219 @@
+{
+  "devices": [
+    {
+      "architecture": "arm64",
+      "deviceId": "00000000-0000000000000000",
+      "deviceName": "Test Mac",
+      "modelName": "Mac",
+      "osBuildNumber": "00A000",
+      "osVersion": "26.0",
+      "platform": "macOS"
+    }
+  ],
+  "testNodes": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "duration": "0,0028s",
+                  "durationInSeconds": 0.0028481483459472656,
+                  "name": "Adding 1,000 items, all at once",
+                  "nodeIdentifier": "NameProbes/`Adding 1,000 items, all at once`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/NameProbes/%60Adding%201,000%20items,%20all%20at%20once%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "0,0028s",
+                  "durationInSeconds": 0.002766847610473633,
+                  "name": "Café ferme à minuit — vérifié",
+                  "nodeIdentifier": "NameProbes/`Café ferme à minuit — vérifié`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/NameProbes/%60Caf%C3%A9%20ferme%20%C3%A0%20minuit%20%E2%80%94%20v%C3%A9rifi%C3%A9%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "0,0029s",
+                  "durationInSeconds": 0.0029001235961914062,
+                  "name": "Name with \"quotes\" and (parens) and [brackets]",
+                  "nodeIdentifier": "NameProbes/`Name with \"quotes\" and (parens) and [brackets]`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/NameProbes/%60Name%20with%20%22quotes%22%20and%20(parens)%20and%20%5Bbrackets%5D%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                },
+                {
+                  "duration": "0,0028s",
+                  "durationInSeconds": 0.002828836441040039,
+                  "name": "Name with a . period and a / slash",
+                  "nodeIdentifier": "NameProbes/`Name with a . period and a / slash`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/NameProbes/%60Name%20with%20a%20.%20period%20and%20a%20/%20slash%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed"
+                }
+              ],
+              "name": "Feature: Name probes",
+              "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/NameProbes",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            },
+            {
+              "children": [
+                {
+                  "duration": "0,003s",
+                  "durationInSeconds": 0.0030241012573242188,
+                  "name": "Adding a todo shows it in the list",
+                  "nodeIdentifier": "TodoManagementFeature/`Adding a todo shows it in the list`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/TodoManagementFeature/%60Adding%20a%20todo%20shows%20it%20in%20the%20list%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed",
+                  "tags": [
+                    "batch1",
+                    "todo"
+                  ]
+                },
+                {
+                  "duration": "0,0028s",
+                  "durationInSeconds": 0.0027971267700195312,
+                  "name": "Completing a todo moves it to done",
+                  "nodeIdentifier": "TodoManagementFeature/`Completing a todo moves it to done`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/TodoManagementFeature/%60Completing%20a%20todo%20moves%20it%20to%20done%60()",
+                  "nodeType": "Test Case",
+                  "result": "Passed",
+                  "tags": [
+                    "todo",
+                    "batch1"
+                  ]
+                },
+                {
+                  "children": [
+                    {
+                      "duration": "0,0026s",
+                      "durationInSeconds": 0.0025877952575683594,
+                      "name": "-3, \"negative\"",
+                      "nodeType": "Arguments",
+                      "result": "Passed"
+                    },
+                    {
+                      "duration": "0,0026s",
+                      "durationInSeconds": 0.002621889114379883,
+                      "name": "0, \"zero\"",
+                      "nodeType": "Arguments",
+                      "result": "Passed"
+                    },
+                    {
+                      "duration": "0,0026s",
+                      "durationInSeconds": 0.002641916275024414,
+                      "name": "1000, \"over-limit\"",
+                      "nodeType": "Arguments",
+                      "result": "Passed"
+                    }
+                  ],
+                  "duration": "0,0026s",
+                  "durationInSeconds": 0.0026172002156575522,
+                  "name": "Rejecting an invalid quantity keeps the cart unchanged",
+                  "nodeIdentifier": "TodoManagementFeature/`Rejecting an invalid quantity keeps the cart unchanged`(quantity:reason:)",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/TodoManagementFeature/%60Rejecting%20an%20invalid%20quantity%20keeps%20the%20cart%20unchanged%60(quantity:reason:)",
+                  "nodeType": "Test Case",
+                  "result": "Passed",
+                  "tags": [
+                    "batch2",
+                    "cart"
+                  ]
+                }
+              ],
+              "name": "Feature: Todo management",
+              "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/TodoManagementFeature",
+              "nodeType": "Test Suite",
+              "result": "Passed"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "name": "Seeded.swift:9: Expectation failed: 1 == 2: expected the impossible",
+                      "nodeType": "Failure Message"
+                    }
+                  ],
+                  "duration": "0,003s",
+                  "durationInSeconds": 0.0029571056365966797,
+                  "name": "A genuinely failing scenario",
+                  "nodeIdentifier": "SeededOutcomesFeature/`A genuinely failing scenario`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/SeededOutcomesFeature/%60A%20genuinely%20failing%20scenario%60()",
+                  "nodeType": "Test Case",
+                  "result": "Failed"
+                },
+                {
+                  "children": [
+                    {
+                      "name": "Seeded.swift:14: Expectation failed: Bool(false): step not implemented: Given a missing step",
+                      "nodeType": "Failure Message"
+                    }
+                  ],
+                  "duration": "0,0031s",
+                  "durationInSeconds": 0.0030651092529296875,
+                  "name": "An undefined scenario",
+                  "nodeIdentifier": "SeededOutcomesFeature/`An undefined scenario`()",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/SeededOutcomesFeature/%60An%20undefined%20scenario%60()",
+                  "nodeType": "Test Case",
+                  "result": "Failed"
+                },
+                {
+                  "children": [
+                    {
+                      "duration": "0,000036s",
+                      "durationInSeconds": 3.600120544433594e-05,
+                      "name": "1, \"ok\"",
+                      "nodeType": "Arguments",
+                      "result": "Passed"
+                    },
+                    {
+                      "children": [
+                        {
+                          "name": "Seeded.swift:19: Expectation failed: (quantity → 7) < 5: quantity too big: 7",
+                          "nodeType": "Failure Message"
+                        }
+                      ],
+                      "duration": "0,00017s",
+                      "durationInSeconds": 0.0001671314239501953,
+                      "name": "7, \"boom\"",
+                      "nodeType": "Arguments",
+                      "result": "Failed"
+                    }
+                  ],
+                  "duration": "0,0001s",
+                  "durationInSeconds": 0.00010156631469726562,
+                  "name": "A row failing outline",
+                  "nodeIdentifier": "SeededOutcomesFeature/`A row failing outline`(quantity:reason:)",
+                  "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/SeededOutcomesFeature/%60A%20row%20failing%20outline%60(quantity:reason:)",
+                  "nodeType": "Test Case",
+                  "result": "Failed"
+                }
+              ],
+              "name": "Feature: Seeded outcomes",
+              "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests/SeededOutcomesFeature",
+              "nodeType": "Test Suite",
+              "result": "Failed"
+            }
+          ],
+          "name": "SpecSpikeTests",
+          "nodeIdentifierURL": "test://com.apple.xcode/SpecSpike/SpecSpikeTests",
+          "nodeType": "Unit test bundle",
+          "result": "Failed"
+        }
+      ],
+      "name": "SpecSpike",
+      "nodeType": "Test Plan",
+      "result": "Failed"
+    }
+  ],
+  "testPlanConfigurations": [
+    {
+      "configurationId": "1",
+      "configurationName": "Test Scheme Action"
+    }
+  ]
+}

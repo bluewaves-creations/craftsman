@@ -348,10 +348,24 @@ pub fn parse_swift_events_jsonl(input: &str) -> Result<Vec<ScenarioResult>, Norm
 
 const SWIFT_CTX: &str = "Swift Testing event stream JSONL";
 
-/// One recorded issue of a swift test.
-struct SwiftIssue {
-    text: String,
-    is_stub_marker: bool,
+/// One recorded issue of a swift test. Shared with the xcresult parser in
+/// `adapters::xcodebuild` — both ingestion paths speak the same
+/// message-prefix dialect.
+pub(crate) struct SwiftIssue {
+    pub(crate) text: String,
+    pub(crate) is_stub_marker: bool,
+}
+
+/// The message-prefix dialect verdict for a failed swift test: when every
+/// recorded issue carries the generated-stub marker, no real step
+/// implementation exists — [`Status::Undefined`], not Failed. Any
+/// non-marker issue (or no issues at all) keeps it Failed.
+pub(crate) fn swift_failed_status(issues: &[SwiftIssue]) -> Status {
+    if !issues.is_empty() && issues.iter().all(|i| i.is_stub_marker) {
+        Status::Undefined
+    } else {
+        Status::Failed
+    }
 }
 
 /// Accumulator over the event stream, keyed by the 3-part test ID.
@@ -473,16 +487,10 @@ impl SwiftEvents {
                 let test_issues = self.issues.remove(&id).unwrap_or_default();
                 let (status, duration_ms) = match self.ended.get(&id) {
                     Some(&(true, at)) => (Status::Passed, self.duration_until(&id, at)),
-                    Some(&(false, at)) => {
-                        let status = if !test_issues.is_empty()
-                            && test_issues.iter().all(|i| i.is_stub_marker)
-                        {
-                            Status::Undefined
-                        } else {
-                            Status::Failed
-                        };
-                        (status, self.duration_until(&id, at))
-                    }
+                    Some(&(false, at)) => (
+                        swift_failed_status(&test_issues),
+                        self.duration_until(&id, at),
+                    ),
                     // Discovered but never ended: the run died mid-test —
                     // never a pass.
                     None => (Status::Failed, None),

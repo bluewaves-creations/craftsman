@@ -180,14 +180,7 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     let mut stack_maps: BTreeMap<String, impact::StackMap> = BTreeMap::new();
     for stack in &config.project.stacks {
         let section = config.verify.stack(stack);
-        let run = run_stack(
-            stack,
-            &root,
-            section,
-            &feature.name,
-            filter.as_deref(),
-            full_run,
-        )?;
+        let run = run_stack(stack, &root, section, &feature, filter.as_deref(), full_run)?;
         if let Some(map) = run.map {
             stack_maps.insert(stack.clone(), map);
         }
@@ -353,13 +346,15 @@ struct StackRun {
     map: Option<impact::StackMap>,
 }
 
-/// Dispatch one stack to its adapter. `feature_name` anchors the swift
-/// `--filter` recipe (the generated `@Suite` struct name derives from it).
+/// Dispatch one stack to its adapter. The parsed `feature` anchors the
+/// swift selection recipes (the generated `@Suite` struct name derives
+/// from its name; xcodebuild selectors need each scenario's generated
+/// test signature).
 fn run_stack(
     stack: &str,
     root: &Path,
     section: Option<&VerifyStack>,
-    feature_name: &str,
+    feature: &gherkin::Feature,
     filter: Option<&[String]>,
     full_run: bool,
 ) -> Result<StackRun, VerifyError> {
@@ -452,7 +447,7 @@ fn run_stack(
         }
         "swift" => {
             check_runner("swift", "swift-testing")?;
-            run_swift_stack(root, section, feature_name, filter, full_run)
+            run_swift_stack(root, section, feature, filter, full_run)
         }
         "bash" => {
             check_runner("bash", "bats")?;
@@ -476,12 +471,14 @@ fn run_stack(
     }
 }
 
-/// The swift stack: the swift-testing adapter over the generated package
-/// (`codegen::swift` owns package/tests-dir resolution and the suite name).
+/// The swift stack: the swift-testing adapter over the generated package,
+/// or — when `[verify.swift] scheme` is set — the xcodebuild adapter over
+/// the scheme (`codegen::swift` owns package/tests-dir resolution, the
+/// suite name, and the generated test signatures).
 fn run_swift_stack(
     root: &Path,
     section: Option<&VerifyStack>,
-    feature_name: &str,
+    feature: &gherkin::Feature,
     filter: Option<&[String]>,
     full_run: bool,
 ) -> Result<StackRun, VerifyError> {
@@ -493,16 +490,22 @@ fn run_swift_stack(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let suite = crate::codegen::swift::suite_name(feature_name);
+    let suite = crate::codegen::swift::suite_name(&feature.name);
     let artifacts = root.join(".craftsman").join("cache").join("verify");
-    let results = swift_testing::run(
-        &package_dir,
-        &artifacts,
-        &test_target,
-        &suite,
-        filter,
-        section.and_then(|s| s.scheme.as_deref()),
-    )?;
+    let results = if let Some(scheme) = section.and_then(|s| s.scheme.as_deref()) {
+        let selectors = filter
+            .map(|names| xcodebuild_selectors(feature, &test_target, &suite, names))
+            .transpose()?;
+        adapters::xcodebuild::run(
+            &package_dir,
+            &artifacts,
+            scheme,
+            section.and_then(|s| s.destination.as_deref()),
+            selectors.as_deref(),
+        )?
+    } else {
+        swift_testing::run(&package_dir, &artifacts, &test_target, &suite, filter)?
+    };
     // No cheap per-test coverage for swift: record the test-target
     // sources — informational, never excluding.
     let map = full_run.then(|| {
@@ -515,4 +518,31 @@ fn run_swift_stack(
         )
     });
     Ok(StackRun { results, map })
+}
+
+/// The `-only-testing:` identifiers for a set of scenario names — the
+/// probed `` Target/Suite/`name`(signature) `` shape, with each signature
+/// derived from the scenario's Examples headers.
+fn xcodebuild_selectors(
+    feature: &gherkin::Feature,
+    test_target: &str,
+    suite: &str,
+    names: &[String],
+) -> Result<Vec<String>, VerifyError> {
+    names
+        .iter()
+        .map(|name| {
+            // Selection is resolved against the spec inventory before any
+            // adapter runs, so every name exists; an absent signature can
+            // only mean spec/inventory drift within this process.
+            let signature =
+                crate::codegen::swift::test_signature(feature, name)?.unwrap_or_default();
+            Ok(adapters::xcodebuild::only_testing_selector(
+                test_target,
+                suite,
+                name,
+                &signature,
+            ))
+        })
+        .collect()
 }

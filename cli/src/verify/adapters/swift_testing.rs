@@ -18,10 +18,9 @@
 //! exist only there); the `*-swift-testing.xml` xunit sibling is a coarse
 //! fallback when the stream is missing or unreadable.
 //!
-//! xcodebuild variant (`[verify.swift] scheme`): NOT yet supported — this
-//! adapter refuses loudly instead of half-running (Batch 5 honest-undone;
-//! the `xcodebuild test -resultBundlePath` + `xcrun xcresulttool` pipeline
-//! needs its own spike).
+//! xcodebuild variant (`[verify.swift] scheme`): handled by the sibling
+//! `xcodebuild` adapter (Batch 9a) — the verify dispatcher routes on the
+//! presence of `scheme`, so this adapter only ever sees the `SwiftPM` path.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -38,27 +37,15 @@ use crate::verify::normalize::{
 /// anchors of the ADR-001 filter recipe.
 ///
 /// # Errors
-/// [`AdapterError`] on spawn failure, an xcodebuild request (`scheme` set —
-/// unsupported), a failing runner that produced no artifacts, or artifacts
-/// neither parser can read.
+/// [`AdapterError`] on spawn failure, a failing runner that produced no
+/// artifacts, or artifacts neither parser can read.
 pub fn run(
     package_dir: &Path,
     artifacts_dir: &Path,
     test_target: &str,
     suite: &str,
     scenario_names: Option<&[String]>,
-    scheme: Option<&str>,
 ) -> Result<Vec<ScenarioResult>, AdapterError> {
-    if let Some(scheme) = scheme {
-        return Err(AdapterError::Unsupported {
-            detail: format!(
-                "[verify.swift] scheme = {scheme:?}: the xcodebuild/xcresulttool \
-                 variant is not yet supported — remove `scheme` to run through \
-                 SwiftPM (`swift test`), or wait for the xcodebuild adapter"
-            ),
-        });
-    }
-
     std::fs::create_dir_all(artifacts_dir).map_err(|source| AdapterError::ResultsPath {
         path: artifacts_dir.to_path_buf(),
         source,

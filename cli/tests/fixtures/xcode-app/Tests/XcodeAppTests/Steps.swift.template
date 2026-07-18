@@ -1,0 +1,46 @@
+// Step implementations for SPEC.md — written ONCE by `craftsman spec gen`
+// and never overwritten (this file is yours from now on). Copy it next to
+// the generated SpecScenarios.swift as `Steps.swift`, then implement each
+// method. Unimplemented steps keep the #expect stub below; its
+// "step not implemented:" message is how `craftsman verify` reports the
+// scenario as Undefined rather than Failed.
+
+import Testing
+
+struct SpecSteps {
+    // Given a seeded counter
+    mutating func step_a_seeded_counter() throws {
+        #expect(Bool(false), "step not implemented: Given a seeded counter")
+    }
+
+    // When the counter is bumped
+    mutating func step_the_counter_is_bumped() throws {
+        #expect(Bool(false), "step not implemented: When the counter is bumped")
+    }
+
+    // Then the counter holds two
+    mutating func step_the_counter_holds_two() throws {
+        #expect(Bool(false), "step not implemented: Then the counter holds two")
+    }
+
+    // Given an unwritten step
+    mutating func step_an_unwritten_step() throws {
+        #expect(Bool(false), "step not implemented: Given an unwritten step")
+    }
+
+    // Given a limit of 10
+    mutating func step_a_limit_of_10() throws {
+        #expect(Bool(false), "step not implemented: Given a limit of 10")
+    }
+
+    // When the quantity is set to <quantity>
+    mutating func step_the_quantity_is_set_to(_ quantity: Int) throws {
+        #expect(Bool(false), "step not implemented: When the quantity is set to <quantity>")
+    }
+
+    // Then acceptance is "<verdict>"
+    mutating func step_acceptance_is(_ verdict: String) throws {
+        #expect(Bool(false), "step not implemented: Then acceptance is \"<verdict>\"")
+    }
+
+}

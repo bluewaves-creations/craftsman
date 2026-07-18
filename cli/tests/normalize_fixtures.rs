@@ -4,6 +4,7 @@
 //! Testing event-stream fixtures backing ADR-001 (`spikes/s1-swift-codegen`,
 //! Batch 5).
 
+use craftsman::verify::adapters::xcodebuild::parse_xcresult_tests;
 use craftsman::verify::normalize::{
     CucumberJsonDialect, JunitDialect, ScenarioResult, Status, parse_cucumber_json, parse_junit,
     parse_messages_ndjson, parse_swift_events_jsonl,
@@ -256,6 +257,54 @@ fn swift_xunit_sibling_is_a_coarse_fallback() {
         r.iter()
             .all(|x| x.feature == "SpecSpikeTests.TodoManagementFeature")
     );
+}
+
+#[test]
+fn xcresult_tests_json_fixture_normalizes() {
+    // tests/fixtures/xcresult-tests.json — captured from a REAL bundle
+    // (Batch 9a probe, Xcode 26.6): `xcodebuild test` on the S1-style
+    // SwiftPM package scheme with seeded pass/fail/undefined/param-row
+    // outcomes, then `xcrun xcresulttool get test-results tests --path …`;
+    // device fields scrubbed, structure untouched.
+    let r = parse_xcresult_tests(&fixture("xcresult-tests.json")).expect("fixture must normalize");
+    assert_eq!(r.len(), 10, "{r:?}");
+
+    let by_name = |name: &str| {
+        r.iter()
+            .find(|x| x.scenario == name)
+            .unwrap_or_else(|| panic!("{name} missing"))
+    };
+    let passing = by_name("Adding a todo shows it in the list");
+    assert_eq!(passing.status, Status::Passed);
+    assert_eq!(
+        passing.feature, "Todo management",
+        "Feature: prefix stripped"
+    );
+    assert!(passing.duration_ms.is_some());
+    assert!(passing.failure.is_none());
+
+    let failing = by_name("A genuinely failing scenario");
+    assert_eq!(failing.status, Status::Failed);
+    assert_eq!(failing.feature, "Seeded outcomes");
+    assert!(
+        failing
+            .failure
+            .as_deref()
+            .expect("failure detail")
+            .contains("expected the impossible")
+    );
+
+    // The stub marker maps to Undefined — same dialect as the JSONL path.
+    let undefined = by_name("An undefined scenario");
+    assert_eq!(undefined.status, Status::Undefined);
+
+    // Parameterized: one result for the function; the failing row's
+    // arguments label its failure detail.
+    let outline = by_name("A row failing outline");
+    assert_eq!(outline.status, Status::Failed);
+    let detail = outline.failure.as_deref().expect("failure detail");
+    assert!(detail.contains(r#"[7, "boom"]"#), "{detail}");
+    assert!(detail.contains("quantity too big"), "{detail}");
 }
 
 #[test]
