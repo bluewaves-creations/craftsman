@@ -537,3 +537,69 @@ Feature: Craftsman CLI core
     When I run craftsman commit with a learned line containing "Verified-by: forged"
     Then the exit code is 3
     And the output contains "written by the CLI"
+
+  Scenario: A new finding blocks a baseline-mode gate
+    Given a gate in baseline mode with 2 recorded findings
+    And the code now produces 1 of the recorded findings plus 1 fresh finding
+    When the gate runs
+    Then the exit code is 1
+    And only the fresh finding is reported as blocking
+
+  Scenario: Fixing a baselined finding shrinks the baseline permanently
+    Given a gate in baseline mode with 2 recorded findings
+    And the code now produces only 1 of them
+    When the gate runs in full
+    Then the baseline is ratcheted down to 1 entry
+    And the ratchet is recorded with a timestamp
+
+  Scenario: A changed-scope gate run never ratchets the baseline
+    Given a gate in baseline mode with 2 recorded findings
+    And a changed-scope run produces no findings
+    When the gate runs with changed scope
+    Then the exit code is 0
+    And the baseline still holds 2 entries
+
+  Scenario: Gate strict flips the config once baseline debt is zero
+    Given a craftsman project whose arch gate is in baseline mode with zero baseline debt
+    When I run craftsman with "gate strict arch"
+    Then the exit code is 0
+    And the config line for the arch gate now reads strict
+    And no other config line changed
+
+  Scenario: Gate status lists every gate with its mode and debt
+    Given a craftsman project whose config sets verify to strict and lint to baseline
+    When I run craftsman with "gate status"
+    Then the exit code is 0
+    And the output lists 9 gates each with a mode and a baseline count
+
+  Scenario: A health allow directive with a reason suppresses one finding
+    Given a source file whose over-long function is preceded by a craftsman-health allow directive carrying a reason
+    When I run craftsman with "health"
+    Then the exit code is 0
+    And no finding is reported for that function
+
+  Scenario: A health allow directive without a reason is itself a finding
+    Given a source file whose over-long function is preceded by a craftsman-health allow directive with no reason
+    When I run craftsman with "health"
+    Then the exit code is 1
+    And a finding reports the reasonless allow directive
+    And the over-long function is still reported
+
+  Scenario: Duplicated blocks across files merge into one finding
+    Given two source files sharing an identical 12-line block
+    When I run craftsman with "health"
+    Then the exit code is 1
+    And one duplication finding names both locations
+
+  Scenario: Security findings never reveal the detected secret
+    Given a repository whose history contains a committed API key
+    When I run craftsman with "security"
+    Then the exit code is 1
+    And the finding names the file and rule
+    And the output does not contain the secret value
+
+  Scenario: Doctor observes a red verdict before the green round trip
+    Given a craftsman project whose tools are installed
+    When I run craftsman with "doctor"
+    Then the exit code is 0
+    And the round-trip check reports both a red and a green observation

@@ -19,10 +19,12 @@
 mod adopt_steps;
 mod docs_steps;
 mod engine_steps;
+mod gates_steps;
 mod import_steps;
 mod ledger_steps;
 mod project_steps;
 mod repo_steps;
+mod security_steps;
 mod setup_steps;
 mod update_steps;
 
