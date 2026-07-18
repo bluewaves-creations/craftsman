@@ -16,6 +16,7 @@
 pub mod adapter;
 pub mod baseline;
 pub mod check_all;
+pub mod health;
 pub mod lint;
 pub mod security;
 pub mod tools;

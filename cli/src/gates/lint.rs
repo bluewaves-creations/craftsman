@@ -94,11 +94,14 @@ pub(crate) fn finish(
 ) -> Result<GateOutcome, GateError> {
     let (blocking, baselined, ratchet) = match mode {
         GateMode::Baseline => {
+            // Internal gate tools (health, arch, mutate) are not in the
+            // adapter table — they have no native baseline mechanism, so
+            // unknown names default to the unified snapshot.
             let snapshot_tools: Vec<&'static str> = tools_ran
                 .iter()
                 .copied()
                 .filter(|name| {
-                    adapter::tool(name).is_some_and(|t| t.baseline == BaselineKind::Snapshot)
+                    adapter::tool(name).is_none_or(|t| t.baseline == BaselineKind::Snapshot)
                 })
                 .collect();
             let (snapshot, native): (Vec<Finding>, Vec<Finding>) = findings
