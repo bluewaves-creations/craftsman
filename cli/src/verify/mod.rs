@@ -1,8 +1,8 @@
 //! `craftsman verify` — THE gate: run SPEC.md scenarios via the stack
 //! adapters and normalize every runner's output into the schema v1 results.
 //!
-//! Every stack listed in `[project] stacks` runs (Batch 4: rust, python,
-//! typescript — swift/bash code-gen arrive in Batch 5); results merge into
+//! Every stack listed in `[project] stacks` runs (rust, python, typescript,
+//! and — Batch 5 — the code-gen stacks swift and bash); results merge into
 //! one report with per-stack sections. Unknown stack names are rejected
 //! upfront, before any adapter runs.
 //!
@@ -26,7 +26,7 @@ use crate::config::{Config, ConfigError, VerifyStack};
 use crate::plan::{self, PlanError};
 use crate::spec::{self, SpecError};
 use adapters::AdapterError;
-use adapters::{cucumber_js, cucumber_rs, pytest_bdd};
+use adapters::{bats, cucumber_js, cucumber_rs, pytest_bdd, swift_testing};
 use normalize::{ScenarioResult, Status};
 
 /// What to run: everything, one plan batch, one scenario by exact name, or
@@ -52,10 +52,11 @@ pub enum VerifyError {
     Adapter(#[from] AdapterError),
     #[error(
         "unknown stack {stack:?} in [project] stacks — craftsman verify \
-         supports \"rust\", \"python\", and \"typescript\" (swift/bash arrive \
-         in Batch 5)"
+         supports \"rust\", \"python\", \"typescript\", \"swift\", and \"bash\""
     )]
     UnknownStack { stack: String },
+    #[error(transparent)]
+    Gen(#[from] crate::codegen::GenError),
     #[error("[verify.{stack}] runner {runner:?} is not supported — use {supported:?}")]
     UnsupportedRunner {
         stack: &'static str,
@@ -148,7 +149,10 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     // Reject unknown stacks before running anything: a config typo must
     // never silently shrink the verified surface.
     for stack in &config.project.stacks {
-        if !matches!(stack.as_str(), "rust" | "python" | "typescript") {
+        if !matches!(
+            stack.as_str(),
+            "rust" | "python" | "typescript" | "swift" | "bash"
+        ) {
             return Err(VerifyError::UnknownStack {
                 stack: stack.clone(),
             });
@@ -176,7 +180,14 @@ pub fn run(cwd: &Path, selection: &Selection) -> Result<Report, VerifyError> {
     let mut stack_maps: BTreeMap<String, impact::StackMap> = BTreeMap::new();
     for stack in &config.project.stacks {
         let section = config.verify.stack(stack);
-        let run = run_stack(stack, &root, section, filter.as_deref(), full_run)?;
+        let run = run_stack(
+            stack,
+            &root,
+            section,
+            &feature.name,
+            filter.as_deref(),
+            full_run,
+        )?;
         if let Some(map) = run.map {
             stack_maps.insert(stack.clone(), map);
         }
@@ -342,11 +353,13 @@ struct StackRun {
     map: Option<impact::StackMap>,
 }
 
-/// Dispatch one stack to its adapter.
+/// Dispatch one stack to its adapter. `feature_name` anchors the swift
+/// `--filter` recipe (the generated `@Suite` struct name derives from it).
 fn run_stack(
     stack: &str,
     root: &Path,
     section: Option<&VerifyStack>,
+    feature_name: &str,
     filter: Option<&[String]>,
     full_run: bool,
 ) -> Result<StackRun, VerifyError> {
@@ -437,10 +450,69 @@ fn run_stack(
             });
             Ok(StackRun { results, map })
         }
+        "swift" => {
+            check_runner("swift", "swift-testing")?;
+            run_swift_stack(root, section, feature_name, filter, full_run)
+        }
+        "bash" => {
+            check_runner("bash", "bats")?;
+            let bats_dir = crate::codegen::bats_dir(root, section);
+            let results = bats::run(&bats_dir, filter)?;
+            // No coverage concept for bats: record the bats dir files —
+            // informational, never excluding.
+            let map = full_run.then(|| {
+                impact::glue_stack_map(
+                    &scenario_names(&results),
+                    impact::files_under(&bats_dir, root),
+                )
+            });
+            Ok(StackRun { results, map })
+        }
         // Defensive: `run` validates stack names upfront, so this arm only
-        // fires if the two lists ever drift (swift/bash arrive in Batch 5).
+        // fires if the two lists ever drift.
         other => Err(VerifyError::UnknownStack {
             stack: other.to_owned(),
         }),
     }
+}
+
+/// The swift stack: the swift-testing adapter over the generated package
+/// (`codegen::swift` owns package/tests-dir resolution and the suite name).
+fn run_swift_stack(
+    root: &Path,
+    section: Option<&VerifyStack>,
+    feature_name: &str,
+    filter: Option<&[String]>,
+    full_run: bool,
+) -> Result<StackRun, VerifyError> {
+    let package_dir = crate::codegen::swift::package_dir(root, section);
+    let tests_dir = crate::codegen::swift::resolve_tests_dir(root, section)?;
+    // SwiftPM convention: the test target is named after its source
+    // directory under Tests/ — the filter recipe's Target anchor.
+    let test_target = tests_dir
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let suite = crate::codegen::swift::suite_name(feature_name);
+    let artifacts = root.join(".craftsman").join("cache").join("verify");
+    let results = swift_testing::run(
+        &package_dir,
+        &artifacts,
+        &test_target,
+        &suite,
+        filter,
+        section.and_then(|s| s.scheme.as_deref()),
+    )?;
+    // No cheap per-test coverage for swift: record the test-target
+    // sources — informational, never excluding.
+    let map = full_run.then(|| {
+        impact::glue_stack_map(
+            &results
+                .iter()
+                .map(|r| r.scenario.clone())
+                .collect::<Vec<_>>(),
+            impact::files_under(&tests_dir, root),
+        )
+    });
+    Ok(StackRun { results, map })
 }

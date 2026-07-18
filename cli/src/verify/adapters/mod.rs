@@ -1,10 +1,14 @@
-//! Per-stack runner adapters. Batch 2 shipped the rust stack (cucumber-rs);
-//! Batch 4 adds python (pytest-bdd) and typescript (cucumber-js); swift/bash
-//! code-gen arrive in Batch 5.
+//! Per-stack runner adapters.
+//!
+//! Batch 2 shipped the rust stack (cucumber-rs); Batch 4 added python
+//! (pytest-bdd) and typescript (cucumber-js); Batch 5 adds the code-gen
+//! stacks: swift (swift-testing) and bash (bats).
 
+pub mod bats;
 pub mod cucumber_js;
 pub mod cucumber_rs;
 pub mod pytest_bdd;
+pub mod swift_testing;
 
 use std::path::PathBuf;
 
@@ -46,6 +50,8 @@ pub enum AdapterError {
     },
     #[error(transparent)]
     Normalize(#[from] NormalizeError),
+    #[error("{detail}")]
+    Unsupported { detail: String },
 }
 
 /// Last `lines` lines of a runner's output, for failure details.
@@ -53,4 +59,19 @@ pub(crate) fn tail(text: &str, lines: usize) -> String {
     let all: Vec<&str> = text.lines().collect();
     let start = all.len().saturating_sub(lines);
     all[start..].join("\n")
+}
+
+/// Escape the metacharacter set of the `regex` crate / POSIX ERE — mirrors
+/// `regex::escape` without pulling the crate in. Shared by every adapter
+/// that synthesizes a name filter (cucumber-rs `--name`, `swift test
+/// --filter`, `bats -f`).
+pub(crate) fn regex_escape(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if "\\.+*?()|[]{}^$#&-~".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }

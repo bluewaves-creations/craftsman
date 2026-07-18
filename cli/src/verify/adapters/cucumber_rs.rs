@@ -101,22 +101,8 @@ pub fn run(
 /// Anchored alternation of regex-escaped names for cucumber-rs `--name`
 /// (a regex matched against the scenario name).
 fn names_pattern(names: &[String]) -> String {
-    let escaped: Vec<String> = names.iter().map(|n| regex_escape(n)).collect();
+    let escaped: Vec<String> = names.iter().map(|n| super::regex_escape(n)).collect();
     format!("^({})$", escaped.join("|"))
-}
-
-/// Escape the metacharacter set of the `regex` crate (what cucumber-rs
-/// matches `--name` with) — mirrors `regex::escape` to avoid pulling the
-/// crate in for one function.
-fn regex_escape(name: &str) -> String {
-    let mut out = String::with_capacity(name.len());
-    for c in name.chars() {
-        if "\\.+*?()|[]{}^$#&-~".contains(c) {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out
 }
 
 #[cfg(test)]
