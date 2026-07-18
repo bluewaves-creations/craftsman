@@ -21,6 +21,41 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
+      # bats-core powers the bash round-trip tests in tests/codegen.rs
+      # (which self-skip, loudly, when bats is absent).
+      - name: Install bats
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install bats-core
+          else
+            sudo apt-get update && sudo apt-get install -y bats
+          fi
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+
+  # swift-linux (Batch 5, honest-undone): the swift round trip in
+  # tests/codegen.rs needs Swift >= 6.2 on the runner (SE-0451 raw
+  # identifiers in the generated tests). Whether the third-party setup
+  # actions (swift-actions/setup-swift, the swiftly action) currently
+  # deliver 6.2+ on ubuntu-24.04 could not be verified while writing this
+  # batch, and an unverified job risks a red CI — so it is parked here.
+  # The test self-skips (loudly) below 6.2, so enabling this is just
+  # uncommenting once the action is confirmed; macos-15 already exercises
+  # the swift path whenever its Xcode ships Swift 6.2+.
+  #
+  # swift-linux:
+  #   runs-on: ubuntu-24.04
+  #   defaults:
+  #     run:
+  #       working-directory: cli
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: swift-actions/setup-swift@v2
+  #       with:
+  #         swift-version: "6.2"
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         workspaces: cli
+  #     - run: cargo test --test codegen swift

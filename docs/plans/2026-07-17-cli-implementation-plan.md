@@ -89,7 +89,17 @@ Scenarios:
 
 ## Batch 5 — Swift + bash code-gen adapters
 
-- [ ] `spec gen` implementing S1's ADR (Swift Testing) + bats generation; `swift test` JSONL parsing on macOS, xcodebuild/xcresulttool variant behind `[verify] scheme`; Linux swift CI job.
+- [x] `spec gen` implementing S1's ADR (Swift Testing) + bats generation: `@Suite`/raw-identifier `@Test` per scenario, outlines as `@Test(arguments:)` with typed labeled tuples, tags → generated `Tag` extension; bats with outline rows expanded as ` [row N]` tests. Single-writer split: generated runner files rewritten each run (GENERATED header), step stub templates written once, real step files never touched. Gen refuses on lint errors (exit 1), exits 4 with no code-gen stack.
+- [x] `swift test` JSONL v0 parsing (event-stream pinned to version 0; testEnded symbols keyed by testID, issueRecorded texts, per-row `_testCase` display names; xunit `-swift-testing.xml` sibling as coarse fallback); ADR-001 `--filter` recipe per scenario; zero-match → exit 4 via self-count. Undefined = a failed test whose every issue carries the generated stubs' `step not implemented: ` message prefix.
+- [x] bats adapter: `--formatter junit` on stdout, anchored `-f` alternation with optional row suffix, row results folded back per scenario, skip-marker → Undefined per ADR-002.
+- [ ] xcodebuild/xcresulttool variant behind `[verify.swift] scheme` — **honest-undone**: the adapter refuses loudly ("not yet supported"); the xcresulttool JSON pipeline needs its own spike.
+- [ ] Linux swift CI job — **honest-undone**: parked commented-out in ci.yml (setup-action coverage of Swift ≥ 6.2 on ubuntu-24.04 unverified; red CI not acceptable). bats now installs in the existing matrix, so the bash round trip runs on CI; macos-15 runs the swift round trip whenever its Xcode ships 6.2+ (the test self-skips loudly below that).
+- Notes: swift round trip measured 2.9s cold / 0.7s warm (stable-path fixture cache) — far under the 90s ignore-threshold, ships unignored. Swift `#expect` failures do not abort the test, so a scenario can mix real failures with stub markers: Undefined only when ALL issues are markers. Swift Testing destructures only 2-tuples in `@Test(arguments:)` → 3+ Examples columns arrive as one labeled tuple parameter. The generated `.bats` sources `steps.bash.template` first, then `steps.bash`, so humans override stubs one function at a time.
+
+Scenarios:
+- Spec gen refuses when the spec has lint errors
+- Spec gen writes a generated header
+- Spec gen never overwrites step implementations
 
 ## Batch 6 — Gates, baselines, check-all
 
