@@ -603,3 +603,81 @@ Feature: Craftsman CLI core
     When I run craftsman with "doctor"
     Then the exit code is 0
     And the round-trip check reports both a red and a green observation
+
+  Scenario: Verify scenario filter runs only the named scenario
+    Given a craftsman project with passing scenarios "First behavior" and "Second behavior"
+    When I run craftsman verify for the scenario "First behavior"
+    Then the exit code is 0
+    And exactly one scenario result is reported, named "First behavior"
+
+  Scenario: An undefined step carries the runner evidence
+    Given a craftsman project whose spec has a scenario with an unimplemented step
+    When I run craftsman with "verify"
+    Then the exit code is 1
+    And the undefined scenario result carries the runner's missing-step detail
+
+  Scenario: A full verify run records the files each scenario covers
+    Given a python craftsman project with no impact map
+    When I run craftsman with "verify"
+    Then an impact map exists mapping each covered scenario to the files it executed
+
+  Scenario: Impact runs only scenarios whose covered files changed
+    Given a craftsman project whose impact map covers "First behavior" with src/a.py and "Second behavior" with src/b.py
+    And the diff since the last commit touches only src/a.py
+    When I run craftsman verify with impact selection
+    Then only the scenario "First behavior" runs
+
+  Scenario: Scenarios unknown to the impact map always run
+    Given a craftsman project whose impact map covers "First behavior" but not "New behavior"
+    And the diff since the last commit touches no covered file
+    When I run craftsman verify with impact selection
+    Then the scenario "New behavior" runs
+
+  @requires-swift
+  Scenario: Generated swift scenarios go red when a step assertion fails
+    Given a swift-stack craftsman project with generated scenarios whose step asserts a counter holds 2
+    And the step implementation makes the counter hold 3
+    When I run craftsman with "verify"
+    Then the scenario is reported failed, not undefined
+    And the failure detail names the actual counter value
+
+  @requires-xcode
+  Scenario: Apple UI test scenarios report pass, undefined and fail distinctly
+    Given a swift-apple craftsman project with one passing, one unimplemented, and one failing scenario
+    When I run craftsman with "verify"
+    Then the exit code is 1
+    And the three scenarios are reported as passed, undefined, and failed respectively
+
+  Scenario: Survived mutants below the score threshold block the mutate gate
+    Given a craftsman project whose diff touches code with weak tests
+    And the mutate minimum score is 100
+    When I run craftsman with "mutate"
+    Then the exit code is 1
+    And the output reports the score against the threshold
+    And survived mutants are reported as findings
+
+  Scenario: A clean tree reports nothing to mutate as a pass
+    Given a craftsman project with no uncommitted changes
+    When I run craftsman with "mutate"
+    Then the exit code is 0
+    And the output contains "nothing to mutate"
+
+  Scenario: Mutate refuses stacks without a consensus tool
+    Given a craftsman project configured with only the stack "swift"
+    When I run craftsman with "mutate"
+    Then the exit code is 3
+    And the output contains "not supported for stack swift"
+
+  @requires-chromium
+  Scenario: A visual regression blocks with a finding naming the failing spec
+    Given a craftsman project with a configured visual gate whose page drifted from its committed baseline
+    When I run craftsman with "visual"
+    Then the exit code is 1
+    And a failed-spec finding names the failing spec file
+
+  @requires-chromium
+  Scenario: An accessibility failure blocks the a11y gate
+    Given a craftsman project with a configured a11y gate whose page carries a seeded accessibility issue
+    When I run craftsman with "a11y"
+    Then the exit code is 1
+    And a failed-spec finding is reported with its line

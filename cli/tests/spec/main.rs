@@ -17,13 +17,18 @@
 )]
 
 mod adopt_steps;
+mod codegen_steps;
 mod docs_steps;
 mod engine_steps;
 mod gates_steps;
+mod impact_steps;
 mod import_steps;
 mod ledger_steps;
+mod mutate_steps;
+mod probes;
 mod project_steps;
 mod repo_steps;
+mod runtime_steps;
 mod security_steps;
 mod setup_steps;
 mod update_steps;
@@ -108,8 +113,11 @@ impl CliWorld {
     }
 }
 
-/// `@requires-network` scenarios only run when the live environment is
-/// explicitly granted (`CRAFTSMAN_LIVE=1`). Excluded scenarios emit no
+/// `@requires-*` capability gates. Network is an explicit grant
+/// (`CRAFTSMAN_LIVE=1`, a policy decision); toolchain tags (`swift`,
+/// `xcode`, `chromium`) probe the machine once and exclude the scenario
+/// when the capability is absent — the loud-skip philosophy of the cargo
+/// integration tests, expressed as tags. Excluded scenarios emit no
 /// result at all, so `spec status` reports them as unknown — visible,
 /// never silently green.
 ///
@@ -120,8 +128,13 @@ impl CliWorld {
 /// filter applies both, so a name-filtered run can never force a gated
 /// scenario live.
 fn scenario_gate(s: &cucumber::gherkin::Scenario) -> bool {
-    std::env::var("CRAFTSMAN_LIVE").is_ok_and(|v| v == "1")
-        || !s.tags.iter().any(|t| t == "requires-network")
+    s.tags.iter().all(|t| match t.as_str() {
+        "requires-network" => std::env::var("CRAFTSMAN_LIVE").is_ok_and(|v| v == "1"),
+        "requires-swift" => probes::swift(),
+        "requires-xcode" => probes::xcode(),
+        "requires-chromium" => probes::chromium(),
+        _ => true,
+    })
 }
 
 #[tokio::main]

@@ -41,6 +41,34 @@ fn git_init_add(dir: &std::path::Path) {
     }
 }
 
+/// Recursive fixture copy, skipping caches and per-run state (`.git`,
+/// `.craftsman`, `.venv`, `node_modules`, `__pycache__`, `target`).
+pub fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).expect("mkdirs");
+    for entry in std::fs::read_dir(from).expect("read fixture dir") {
+        let entry = entry.expect("dir entry");
+        let name = entry.file_name();
+        let skip = [
+            ".git",
+            ".craftsman",
+            ".venv",
+            "node_modules",
+            "__pycache__",
+            "target",
+        ];
+        if skip.iter().any(|s| name.to_string_lossy() == *s) {
+            continue;
+        }
+        let src = entry.path();
+        let dest = to.join(&name);
+        if src.is_dir() {
+            copy_tree(&src, &dest);
+        } else {
+            std::fs::copy(&src, &dest).unwrap_or_else(|e| panic!("copy {}: {e}", src.display()));
+        }
+    }
+}
+
 /// Fresh single-commit repository: init, stage everything, commit with the
 /// fixture identity — for fixtures that need a resolvable `HEAD`.
 pub fn git_init_commit_all(dir: &std::path::Path) {
