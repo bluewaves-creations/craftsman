@@ -7,6 +7,7 @@ This repo builds the Craftsman Dev system: the `craftsman` CLI (`cli/`, Rust), t
 - Build: `cargo build` (in `cli/`; needs `PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"` on this machine)
 - Test: `cargo test` · Lint: `cargo clippy --all-targets -- -D warnings` · Format: `cargo fmt`
 - Install: `sh install.sh` (release binary or cargo, then `craftsman setup`) · Release config: `dist` (cargo-dist 0.32.0, Homebrew)
+- Install (team, from the release — writes the update receipt): `curl -LsSf https://github.com/bluewaves-creations/craftsman/releases/latest/download/craftsman-installer.sh | sh` — thereafter `craftsman update` self-updates
 - Skill validation: `uvx --from skills-ref agentskills validate skills/<skill-dir>`
 - Fixture runners: `uv` for Python, `bun`/`bunx` for JS/TS (never npm/npx/node directly) — both on PATH on this machine
 - Swift toolchains: Xcode 26.6 (selected, /Applications/Xcode.app) and Xcode 27.0 (/Applications/Xcode-beta.app — the team's target; select via DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer); xcodebuild round trip proven under both (2026-07-18)
