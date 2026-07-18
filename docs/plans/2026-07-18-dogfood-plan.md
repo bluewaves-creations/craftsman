@@ -158,6 +158,8 @@ sibling or vendored tree). The exercise, whenever that project appears:
   surface without a citing scenario or characterization pin inherits Batch
   12's base rate — roughly one in three unpinned behaviors hid a live
   defect. The dogfood period does not end while the hardening backlog is
-  non-empty: SPEC.recover.md wiring (Batch 11), the approved delta
-  promises, the GAP-R10 decision, and any gap register entry that appears
-  later. New code never joins the backlog: it is born spec-first.
+  non-empty. The original backlog emptied 2026-07-18 (Batch 11 wired all
+  52 recovered scenarios, the delta promises merged, GAP-R10 decided and
+  built as Batch 17 — the spec now executes 108 scenarios); any gap
+  register entry that appears later reopens it. New code never joins the
+  backlog: it is born spec-first.
