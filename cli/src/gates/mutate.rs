@@ -267,6 +267,19 @@ fn rust_mutate(
         });
     }
 
+    // A diff touching no mutable code (comments, docs) yields zero
+    // mutants — observed live: cargo-mutants then exits 0 WITHOUT writing
+    // mutants.out. Exit 0 with no report is that case, not a tool failure.
+    let out_dir = cache.join("mutants").join("mutants.out");
+    if code == 0 && !out_dir.join("outcomes.json").is_file() {
+        return Ok(StackRun::skipped(
+            "cargo-mutants",
+            "mutate[rust]: the diff touches no mutable code — zero mutants \
+             (cargo-mutants wrote no report)"
+                .to_owned(),
+        ));
+    }
+
     let outcomes_path = cache
         .join("mutants")
         .join("mutants.out")
