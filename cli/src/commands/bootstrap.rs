@@ -151,17 +151,77 @@ fn print_setup_report(report: &craftsman::bootstrap::setup::Report, json: bool) 
 }
 
 pub fn update_cmd(json: bool) -> anyhow::Result<i32> {
-    use craftsman::bootstrap::setup;
+    use craftsman::bootstrap::{setup, update};
 
     eprintln!("craftsman {}", crate::craftsman_version());
-    eprintln!(
-        "update: no self-update channel yet (team-local phase) — to update the \
-         binary, download the current GitHub Release via install.sh or run \
-         `cargo install --path cli` from the repo, then re-run `craftsman update`"
-    );
     eprintln!("update: refreshing installed skills from this binary's embedded payload…");
     let home = setup::home()?;
     let report = setup::install(&home, false)?;
-    print_setup_report(&report, json);
-    Ok(EXIT_PASS)
+    print_setup_report(&report, false);
+
+    let (exit, self_update_json) =
+        report_self_update(&update::self_update(env!("CARGO_PKG_VERSION")));
+    if json {
+        println!(
+            "{:#}",
+            serde_json::json!({
+                "version": crate::craftsman_version(),
+                "skills": report,
+                "self_update": self_update_json,
+            })
+        );
+    }
+    Ok(exit)
+}
+
+/// Narrate the self-update outcome on stderr; return its exit code and
+/// JSON fragment.
+fn report_self_update(
+    outcome: &Result<
+        craftsman::bootstrap::update::SelfUpdate,
+        craftsman::bootstrap::update::UpdateError,
+    >,
+) -> (i32, serde_json::Value) {
+    use craftsman::bootstrap::update::{SelfUpdate, UpdateError};
+
+    match outcome {
+        Ok(result) => {
+            match result {
+                SelfUpdate::NoReceipt => eprintln!(
+                    "update: no install receipt — this binary was not installed \
+                     from a release; to update it, reinstall via install.sh \
+                     (GitHub Release) or `cargo install --path cli`, then re-run \
+                     `craftsman update`"
+                ),
+                SelfUpdate::ForeignBinary { receipt_prefix } => eprintln!(
+                    "update: the install receipt describes {receipt_prefix}, \
+                     not this binary — run the installed `craftsman update` instead"
+                ),
+                SelfUpdate::UpToDate { version } => {
+                    eprintln!("update: craftsman {version} is the latest release");
+                }
+                SelfUpdate::Updated { old, new, prefix } => eprintln!(
+                    "update: craftsman {old} → {new} installed to {prefix} — \
+                     restart to pick it up; run `craftsman update` once more from \
+                     the new binary to refresh its skills"
+                ),
+            }
+            (EXIT_PASS, serde_json::json!(result))
+        }
+        Err(e) => {
+            eprintln!("error: update: {e}");
+            let exit = match e {
+                UpdateError::ChannelUnreachable { .. } | UpdateError::InstallFailed { .. } => {
+                    super::EXIT_VERIFICATION_FAILURE
+                }
+                UpdateError::Environment(_) | UpdateError::BadVersion(_) => {
+                    super::EXIT_ORCHESTRATOR_ERROR
+                }
+            };
+            (
+                exit,
+                serde_json::json!({"status": "failed", "error": e.to_string()}),
+            )
+        }
+    }
 }

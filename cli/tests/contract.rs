@@ -31,7 +31,7 @@ const SURFACE: &[(&[&str], bool)] = &[
     (&["init"], true),
     (&["adopt"], true),
     (&["setup"], true),
-    (&["update"], false),
+    (&["update"], true),
     (&["spec", "status"], false),
     (&["spec", "lint"], true),
     (&["spec", "gen"], true),

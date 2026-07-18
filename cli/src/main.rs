@@ -64,11 +64,18 @@ enum Command {
     /// Exit codes: 0 done (refusals are report rows) · 2 usage error ·
     /// 3 no HOME / IO failure.
     Setup(bootstrap::SetupArgs),
-    /// Team-local update: report this binary's version and refresh the
-    /// installed skills from its embedded payload (`craftsman setup`).
+    /// Update craftsman: refresh the installed skills from this binary's
+    /// embedded payload, then self-update the binary to the latest release
+    /// named by the cargo-dist install receipt
+    /// (~/.config/craftsman/craftsman-receipt.json).
     ///
-    /// Honest scope: real self-update does not exist yet — reinstall via
-    /// install.sh (GitHub Release) or `cargo install --path cli`.
+    /// No receipt (not installed from a release) reports the reinstall
+    /// path — install.sh (GitHub Release) or `cargo install --path cli` —
+    /// and exits 0. The one network-using command outside `docs sync`.
+    ///
+    /// Exit codes: 0 updated / already latest / no receipt ·
+    /// 1 release channel unreachable or install failed · 3 environment
+    /// error (no home, invalid running version).
     Update {
         /// Emit the report as JSON on stdout
         #[arg(long)]

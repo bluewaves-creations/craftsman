@@ -9,3 +9,4 @@ pub mod adopt;
 pub mod init;
 pub mod setup;
 mod templates;
+pub mod update;
