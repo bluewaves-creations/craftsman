@@ -1,6 +1,6 @@
 # ADR-006: Entry doctrine — init, adopt, import; existing QA converts into gates
 
-Status: Proposed · Date: 2026-07-18 · Evidence: the craftsman-web dogfood
+Status: Accepted (human, 2026-07-18) · Date: 2026-07-18 · Evidence: the craftsman-web dogfood
 ledger (`../craftsman-web/docs/dogfood/ledger.md`, findings 1, 3, 4b) and
 the human's doctrine statement of 2026-07-18.
 

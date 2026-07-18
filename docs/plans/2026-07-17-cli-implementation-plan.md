@@ -310,6 +310,8 @@ Tasks (coarse until ADR-006 approval):
 
 Success: craftsman verify exits 0 with the four merged scenarios green
 
+*(Boundary close-out 2026-07-18 — ADR-006 accepted, success line MET: init refuses a non-empty tree (foreign files beyond scaffold/README/LICENSE/repo plumbing) naming adopt and import, --force preserved; `craftsman import` scaffolds kept-not-overwritten, detects package.json scripts as [gates.qa] candidates, and `--audit` runs every enabled non-verify gate forced-strict (an audit hides nothing behind a baseline) reporting the inventory at exit 0 with nothing baselined; verify skipped in audit — the spec loop starts after conversion. Four scenarios merged — verify 47 green / 1 network-gated. The debt-disposal and skill-routing halves are process (craftsman-init skill + human), pinned in the ADR.)*
+
 ## Batch 16 — QA command gates (blocked on ADR-006 approval)
 
 *(the conversion target for imported projects that already carry QA: `[gates.qa.<name>]` command gates under check-all orchestration — exit-code contract, loud refusal when missing, strict|off in v1 (a command verdict has no findings to fingerprint, so baseline does not apply). verify stays always-strict BDD per ADR-006 §4.)*

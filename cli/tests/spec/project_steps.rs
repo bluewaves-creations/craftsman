@@ -383,7 +383,9 @@ fn project_with_unbaselined_health_debt(w: &mut CliWorld) {
 /// `INIT_CONFIG_TOML`; keep in step when the template pins move.
 #[given("the scaffold's pinned gate tools are installed on this machine")]
 fn pinned_gate_tools_installed(w: &mut CliWorld) {
-    let tools = w.project_dir().join("fixture-tools");
+    // Under .craftsman/ so init's non-empty-tree detection (ADR-006)
+    // does not count the sandbox as inherited source.
+    let tools = w.project_dir().join(".craftsman/fixture-tools");
     for pin in ["gitleaks@8.24.0", "osv-scanner@2.4.0"] {
         std::fs::create_dir_all(tools.join(pin)).expect("mkdirs");
     }

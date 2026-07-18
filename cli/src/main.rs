@@ -39,6 +39,17 @@ enum Command {
     /// unknown stack, or existing files without --force (listed first —
     /// nothing is written while any conflict stands).
     Init(bootstrap::InitArgs),
+    /// Bring a tree that arrived from elsewhere under craftsman (ADR-006):
+    /// scaffold the contract non-destructively (existing files are kept,
+    /// never overwritten), detect existing QA commands as [gates.qa]
+    /// conversion candidates, and — with --audit — run every enabled gate
+    /// strict and report the complete flaw inventory without recording a
+    /// baseline. Debt disposal is explicit and human-gated.
+    ///
+    /// Exit codes: 0 imported (or audit reported) · 2 usage error ·
+    /// 3 not a git repo, unknown stack, missing config for --audit, or a
+    /// gate tool that cannot run.
+    Import(bootstrap::ImportArgs),
     /// Brownfield adoption — the five-phase state machine (observe →
     /// ledger → hold-the-line → recover → steady-state), resumable via
     /// .craftsman/adoption.toml (CLI-written, committed).
@@ -306,6 +317,7 @@ fn main() {
 fn run(cli: &Cli) -> anyhow::Result<i32> {
     match &cli.command {
         Command::Init(args) => bootstrap::init_cmd(args),
+        Command::Import(args) => bootstrap::import_cmd(args),
         Command::Adopt(args) => bootstrap::adopt_cmd(args),
         Command::Setup(args) => bootstrap::setup_cmd(args),
         Command::Update { json } => bootstrap::update_cmd(*json),

@@ -29,6 +29,7 @@ use util::{assert_json, combined, craftsman, fixture_project};
 /// exit codes), `false` for report-only commands.
 const SURFACE: &[(&[&str], bool)] = &[
     (&["init"], true),
+    (&["import"], true),
     (&["adopt"], true),
     (&["setup"], true),
     (&["update"], true),

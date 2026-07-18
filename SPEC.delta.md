@@ -24,36 +24,12 @@ this machine" and its count assertion moved 5/5 → 6/6 — doctor grew the
 gate-tools check, and a fresh scaffold's doctor verdict now honestly depends
 on those tools being present.)*
 
-## Batch 15 — the import gear (blocked on ADR-006)
+## Batch 15 — the import gear
 
-```gherkin
-Scenario: Init refuses a non-empty tree and names the import path
-  Given a git repository that already contains source files
-  When I run craftsman with "init --name legacy --stack rust"
-  Then the exit code is 3
-  And the output contains "import"
-  And no scaffold files were written
-
-Scenario: Import scaffolds the contract without destroying existing files
-  Given a git repository that already contains source files
-  When I run craftsman with "import --name legacy --stack rust"
-  Then the exit code is 0
-  And the existing source files are unchanged
-  And the scaffold includes "craftsman.toml"
-
-Scenario: Import audits the enabled gates and reports the flaw inventory
-  Given an imported project whose existing code carries a health finding
-  When I run craftsman with "import --audit"
-  Then the exit code is 0
-  And the audit report lists the health finding
-  And no baseline was recorded
-
-Scenario: Import detects existing QA commands as conversion candidates
-  Given a git repository with a package script named "qa"
-  When I run craftsman with "import --name legacy --stack typescript"
-  Then the exit code is 0
-  And the output lists "qa" as a conversion candidate
-```
+*(ADR-006 accepted by the human 2026-07-18; merged into SPEC.md at the
+Batch 15 boundary the same day. One mechanical concretization: "the audit
+report lists the health finding" became the contains-assertion on the
+finding's rule name, max-function-lines.)*
 
 ## Batch 16 — qa command gates (blocked on ADR-006)
 

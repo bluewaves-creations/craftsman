@@ -3,10 +3,13 @@ name: craftsman-init
 description: >
   Craftsman bootstrap — brings a repo under the methodology. Gears: new
   (greenfield: minimal AGENTS.md interview, craftsman.toml, verify harness, one
-  proven red→green scenario), adopt (brownfield: observe → ledger → baseline
-  gates → recover truth → steady state), upgrade (refresh conventions + CLI
-  pin). Use for "set up craftsman", "init craftsman", "adopt craftsman in this
-  repo", "bring this codebase under craftsman". All gears write files — always
+  proven red→green scenario), adopt (brownfield you own: observe → ledger →
+  baseline gates → recover truth → steady state), import (a tree from
+  elsewhere — copied sibling, forked/vendored open source: audit-first flaw
+  surfacing, explicit debt disposal, QA conversion), upgrade (refresh
+  conventions + CLI pin). Use for "set up craftsman", "init craftsman",
+  "adopt craftsman in this repo", "bring this codebase under craftsman",
+  "import this repo/fork under craftsman". All gears write files — always
   confirm scope before writing. For drafting scenarios afterwards use
   craftsman-spec. Requires the craftsman CLI on PATH; before declaring it
   missing, probe the usual install dirs (~/.cargo/bin, ~/.local/bin —
@@ -27,10 +30,11 @@ Every gear in this skill is destructive: it writes files. There is **no default 
 | Signal | Gear | Load |
 |---|---|---|
 | Empty or new repo; "set up craftsman", "init" | `new` | `references/new.md` |
-| Existing codebase; "adopt", "bring under craftsman" | `adopt` | `references/adopt.md` |
+| Existing codebase you own; "adopt", "bring under craftsman" | `adopt` | `references/adopt.md` |
+| Tree from elsewhere: copied sibling, fork, vendored OSS; "import", "bring this copy under craftsman" | `import` | `references/import.md` |
 | "upgrade craftsman", conventions drift reported | `upgrade` | `references/upgrade.md` |
 
-If the repo already has a `craftsman.toml`, `new` is wrong — confirm whether the human wants `adopt` (resume) or `upgrade`.
+If the repo already has a `craftsman.toml`, `new` is wrong — confirm whether the human wants `adopt` (resume) or `upgrade`. If the tree has source files but no craftsman.toml, the fork is adopt (you grew it) vs import (it arrived from elsewhere) — the CLI refuses `init` on such trees; never answer the fork by guessing, ask.
 
 ## Shared rules
 

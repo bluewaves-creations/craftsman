@@ -6,6 +6,7 @@
 //! and install the bundled skills mechanically.
 
 pub mod adopt;
+pub mod import;
 pub mod init;
 pub mod setup;
 mod templates;

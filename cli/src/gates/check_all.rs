@@ -125,6 +125,31 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
     Ok(Report { gates, outcomes })
 }
 
+/// Audit for `craftsman import` (ADR-006): the complete flaw inventory.
+///
+/// Runs every enabled non-verify gate with its mode forced to strict —
+/// an audit hides nothing behind a baseline — and findings are never a
+/// failure here: the verdict is the report itself. Verify is skipped:
+/// the spec loop starts after conversion, not before.
+///
+/// # Errors
+/// [`GateError`] when a gate's tooling cannot run — a broken tool is
+/// never an empty inventory.
+pub fn audit(root: &Path, config: &Config) -> Result<Vec<GateOutcome>, GateError> {
+    let mut outcomes = Vec::new();
+    for (gate, mode) in config.gates.by_name() {
+        if mode.is_none() || mode == Some(GateMode::Off) {
+            continue;
+        }
+        if gate == "verify" {
+            eprintln!("audit: verify skipped — the spec loop starts after conversion");
+            continue;
+        }
+        outcomes.push(run_gate(gate, root, config, None, GateMode::Strict)?);
+    }
+    Ok(outcomes)
+}
+
 /// Run one non-verify gate under its configured mode.
 fn run_gate(
     gate: &'static str,

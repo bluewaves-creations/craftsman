@@ -67,6 +67,13 @@ pub enum InitError {
         files.iter().map(|f| format!("  {f}")).collect::<Vec<_>>().join("\n")
     )]
     WouldOverwrite { files: Vec<String> },
+    #[error(
+        "{dir} already contains source files ({sample}) — init is \
+         greenfield-only (ADR-006). Use `craftsman adopt` for your own \
+         brownfield tree, `craftsman import` for a tree that arrived from \
+         elsewhere, or --force to scaffold anyway"
+    )]
+    NonEmptyTree { dir: PathBuf, sample: String },
     #[error("cannot write {path}")]
     Io {
         path: PathBuf,
@@ -91,41 +98,6 @@ pub struct Report {
     pub next: Vec<String>,
 }
 
-/// The scaffold target list: (relative path, content). `.gitignore` is
-/// handled separately (merged, never a conflict).
-fn targets(request: &Request, version: &str) -> Vec<(String, String)> {
-    let stacks = request
-        .stacks
-        .iter()
-        .map(|s| format!("\"{s}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let spec_rel = request
-        .spec
-        .clone()
-        .unwrap_or_else(|| default_spec(&request.name, &request.stacks));
-    let config = templates::INIT_CONFIG_TOML
-        .replace("__NAME__", &request.name)
-        .replace("__STACKS__", &stacks)
-        .replace("__SPEC__", &spec_rel)
-        .replace("__VERSION__", version);
-    let agents = templates::AGENTS_MD.replace("__NAME__", &request.name);
-    let spec = templates::SPEC_MD.replace("__NAME__", &request.name);
-    vec![
-        ("craftsman.toml".to_owned(), config),
-        ("AGENTS.md".to_owned(), agents),
-        (spec_rel, spec),
-        (
-            ".claude/settings.json".to_owned(),
-            templates::CLAUDE_SETTINGS_JSON.to_owned(),
-        ),
-        (
-            ".cursor/hooks.json".to_owned(),
-            templates::CURSOR_HOOKS_JSON.to_owned(),
-        ),
-    ]
-}
-
 /// Run the scaffold in `cwd`.
 ///
 /// # Errors
@@ -133,6 +105,14 @@ fn targets(request: &Request, version: &str) -> Vec<(String, String)> {
 /// [`InitError::WouldOverwrite`] listing conflicts without `--force`;
 /// [`InitError::UnknownStack`]; IO failures.
 pub fn run(cwd: &Path, request: &Request) -> Result<Report, InitError> {
+    let files = templates::targets(request, env!("CARGO_PKG_VERSION"));
+    preflight(cwd, request, &files)?;
+    write_scaffold(cwd, request, &files)
+}
+
+/// Every refusal, before anything is written: unknown stack, no git, the
+/// ADR-006 non-empty-tree fork, and scaffold conflicts without `--force`.
+fn preflight(cwd: &Path, request: &Request, files: &[(String, String)]) -> Result<(), InitError> {
     for stack in &request.stacks {
         if !KNOWN_STACKS.contains(&stack.as_str()) {
             return Err(InitError::UnknownStack {
@@ -145,23 +125,40 @@ pub fn run(cwd: &Path, request: &Request) -> Result<Report, InitError> {
             dir: cwd.to_path_buf(),
         });
     }
-
-    let version = env!("CARGO_PKG_VERSION");
-    let files = targets(request, version);
-
-    // Refusal pass first: nothing is written while any conflict stands.
+    if request.force {
+        return Ok(());
+    }
+    // Entry-doctrine pass (ADR-006): a tree with source files beyond a
+    // fresh scaffold is not greenfield — route to adopt/import instead of
+    // scaffolding strict-from-birth gates over inherited code.
+    let foreign = foreign_files(cwd, files);
+    if !foreign.is_empty() {
+        return Err(InitError::NonEmptyTree {
+            dir: cwd.to_path_buf(),
+            sample: foreign.into_iter().take(5).collect::<Vec<_>>().join(", "),
+        });
+    }
+    // Nothing is written while any conflict stands.
     let conflicts: Vec<String> = files
         .iter()
         .map(|(rel, _)| rel.clone())
         .chain(std::iter::once("CLAUDE.md".to_owned()))
         .filter(|rel| cwd.join(rel).exists() || cwd.join(rel).is_symlink())
         .collect();
-    if !conflicts.is_empty() && !request.force {
-        return Err(InitError::WouldOverwrite { files: conflicts });
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(InitError::WouldOverwrite { files: conflicts })
     }
+}
 
+fn write_scaffold(
+    cwd: &Path,
+    request: &Request,
+    files: &[(String, String)],
+) -> Result<Report, InitError> {
     let mut report = Vec::new();
-    for (rel, content) in &files {
+    for (rel, content) in files {
         let path = cwd.join(rel);
         let existed = path.exists();
         write_file(&path, content)?;
@@ -192,7 +189,34 @@ pub fn run(cwd: &Path, request: &Request) -> Result<Report, InitError> {
     })
 }
 
-fn write_file(path: &Path, content: &str) -> Result<(), InitError> {
+/// Top-level entries that make a tree non-greenfield: anything that is not
+/// scaffold output, repo plumbing, or the docs a forge creates with a new
+/// repository (README/LICENSE).
+fn foreign_files(cwd: &Path, targets: &[(String, String)]) -> Vec<String> {
+    let scaffold_roots: Vec<String> = targets
+        .iter()
+        .filter_map(|(rel, _)| rel.split('/').next().map(str::to_owned))
+        .collect();
+    let Ok(entries) = std::fs::read_dir(cwd) else {
+        return Vec::new();
+    };
+    let mut foreign: Vec<String> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| {
+            !matches!(
+                name.as_str(),
+                ".git" | ".gitignore" | ".craftsman" | "CLAUDE.md"
+            ) && !name.starts_with("README")
+                && !name.starts_with("LICENSE")
+                && !scaffold_roots.iter().any(|root| root == name)
+        })
+        .collect();
+    foreign.sort_unstable();
+    foreign
+}
+
+pub(super) fn write_file(path: &Path, content: &str) -> Result<(), InitError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|source| InitError::Io {
             path: parent.to_path_buf(),
@@ -207,7 +231,7 @@ fn write_file(path: &Path, content: &str) -> Result<(), InitError> {
 
 /// CLAUDE.md → AGENTS.md: a relative symlink (the one tolerated harness
 /// artifact), falling back to a pointer file where symlinks fail.
-fn claude_md_link(cwd: &Path, force: bool) -> Result<FileReport, InitError> {
+pub(super) fn claude_md_link(cwd: &Path, force: bool) -> Result<FileReport, InitError> {
     let link = cwd.join("CLAUDE.md");
     if force && (link.exists() || link.is_symlink()) {
         std::fs::remove_file(&link).map_err(|source| InitError::Io {
@@ -233,7 +257,7 @@ fn claude_md_link(cwd: &Path, force: bool) -> Result<FileReport, InitError> {
 
 /// Append the missing `.craftsman/` ignore lines; existing content is
 /// never rewritten (merging is not a conflict).
-fn merge_gitignore(cwd: &Path) -> Result<FileReport, InitError> {
+pub(super) fn merge_gitignore(cwd: &Path) -> Result<FileReport, InitError> {
     let path = cwd.join(".gitignore");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
     let missing: Vec<&str> = templates::GITIGNORE_LINES

@@ -27,6 +27,100 @@ pub struct InitArgs {
 }
 
 #[derive(Args)]
+pub struct ImportArgs {
+    /// Project name for [project] name (not needed with --audit)
+    #[arg(long, required_unless_present = "audit")]
+    pub name: Option<String>,
+    /// Stack (repeatable): swift-apple | swift | python |
+    /// typescript | rust | bash (not needed with --audit)
+    #[arg(long = "stack", required_unless_present = "audit")]
+    pub stack: Vec<String>,
+    /// Spec file name (default: stack-appropriate, as init)
+    #[arg(long)]
+    pub spec: Option<String>,
+    /// Audit only: run every enabled gate strict on the existing config
+    /// and report the flaw inventory — no writes, no baselines
+    #[arg(long)]
+    pub audit: bool,
+    /// Emit the report as JSON on stdout
+    #[arg(long)]
+    pub json: bool,
+}
+
+pub fn import_cmd(args: &ImportArgs) -> anyhow::Result<i32> {
+    if args.audit {
+        return import_audit(args.json);
+    }
+    let request = craftsman::bootstrap::init::Request {
+        name: args.name.clone().expect("clap: required unless --audit"),
+        stacks: args.stack.clone(),
+        spec: args.spec.clone(),
+        force: false,
+    };
+    let report = craftsman::bootstrap::import::run(&cwd()?, &request)?;
+    for f in &report.files {
+        eprintln!("{:>12}  {}", f.action, f.path);
+    }
+    if report.qa_candidates.is_empty() {
+        eprintln!("import: no QA command candidates detected");
+    } else {
+        eprintln!(
+            "import: QA command candidates for [gates.qa] conversion: {}",
+            report.qa_candidates.join(", ")
+        );
+    }
+    for step in &report.next {
+        eprintln!("next: {step}");
+    }
+    if args.json {
+        println!("{:#}", serde_json::json!(report));
+    }
+    Ok(EXIT_PASS)
+}
+
+/// `import --audit`: the full flaw inventory, report-only (ADR-006 —
+/// findings are never a failure here; the report is the point).
+fn import_audit(json: bool) -> anyhow::Result<i32> {
+    use craftsman::gates::check_all;
+    let loaded = super::load()?;
+    let outcomes = check_all::audit(&loaded.root, &loaded.config)?;
+    let mut total = 0usize;
+    for outcome in &outcomes {
+        for f in &outcome.findings {
+            total += 1;
+            let line = f.line.map_or_else(String::new, |l| format!(":{l}"));
+            eprintln!(
+                "  {}  {}{line}  [{}/{}] {} ({})",
+                outcome.gate, f.file, f.tool, f.rule, f.message, f.severity
+            );
+        }
+        eprintln!(
+            "audit {}: {} finding(s), {} tool(s) ran",
+            outcome.gate,
+            outcome.findings.len(),
+            outcome.tools_ran.len()
+        );
+    }
+    eprintln!(
+        "audit: {total} finding(s) across {} gate(s) — nothing baselined; \
+         dispose explicitly (PLAN.md remediation or `craftsman gate baseline <gate>`)",
+        outcomes.len()
+    );
+    if json {
+        let doc = serde_json::json!({
+            "gates": outcomes.iter().map(|o| serde_json::json!({
+                "gate": o.gate,
+                "findings": o.findings,
+                "tools": o.tools_ran,
+            })).collect::<Vec<_>>(),
+            "total_findings": total,
+        });
+        println!("{doc:#}");
+    }
+    Ok(EXIT_PASS)
+}
+
+#[derive(Args)]
 pub struct AdoptArgs {
     /// Report phase state (the default when no flag is given)
     #[arg(long)]

@@ -273,6 +273,33 @@ Feature: Craftsman CLI core
     Then the exit code is 1
     And the output contains "craftsman gate baseline health"
 
+  Scenario: Init refuses a non-empty tree and names the import path
+    Given a git repository that already contains source files
+    When I run craftsman with "init --name legacy --stack rust"
+    Then the exit code is 3
+    And the output contains "import"
+    And no scaffold files were written
+
+  Scenario: Import scaffolds the contract without destroying existing files
+    Given a git repository that already contains source files
+    When I run craftsman with "import --name legacy --stack rust"
+    Then the exit code is 0
+    And the existing source files are unchanged
+    And the scaffold includes "craftsman.toml"
+
+  Scenario: Import audits the enabled gates and reports the flaw inventory
+    Given an imported project whose existing code carries a health finding
+    When I run craftsman with "import --audit"
+    Then the exit code is 0
+    And the output contains "max-function-lines"
+    And no baseline was recorded
+
+  Scenario: Import detects existing QA commands as conversion candidates
+    Given a git repository with a package script named "qa"
+    When I run craftsman with "import --name legacy --stack typescript"
+    Then the exit code is 0
+    And the output lists "qa" as a conversion candidate
+
   Scenario: Adopt enforces phase ordering
     Given an empty git repository directory
     When I run craftsman with "adopt --start-phase 2"

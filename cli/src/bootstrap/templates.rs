@@ -205,3 +205,38 @@ state tracked in `.craftsman/adoption.toml`.
 <!-- Filled from Phase 0's survey — verified claims only; inferred material
      stays in docs/craftsman/adoption-survey.md with its labels. -->
 ";
+
+/// The scaffold target list: (relative path, content). `.gitignore` is
+/// handled separately (merged, never a conflict).
+pub(super) fn targets(request: &super::init::Request, version: &str) -> Vec<(String, String)> {
+    let stacks = request
+        .stacks
+        .iter()
+        .map(|s| format!("\"{s}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let spec_rel = request
+        .spec
+        .clone()
+        .unwrap_or_else(|| super::init::default_spec(&request.name, &request.stacks));
+    let config = INIT_CONFIG_TOML
+        .replace("__NAME__", &request.name)
+        .replace("__STACKS__", &stacks)
+        .replace("__SPEC__", &spec_rel)
+        .replace("__VERSION__", version);
+    let agents = AGENTS_MD.replace("__NAME__", &request.name);
+    let spec = SPEC_MD.replace("__NAME__", &request.name);
+    vec![
+        ("craftsman.toml".to_owned(), config),
+        ("AGENTS.md".to_owned(), agents),
+        (spec_rel, spec),
+        (
+            ".claude/settings.json".to_owned(),
+            CLAUDE_SETTINGS_JSON.to_owned(),
+        ),
+        (
+            ".cursor/hooks.json".to_owned(),
+            CURSOR_HOOKS_JSON.to_owned(),
+        ),
+    ]
+}
