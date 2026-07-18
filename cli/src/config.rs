@@ -72,6 +72,8 @@ pub struct Config {
     #[serde(default)]
     pub docs: Docs,
     #[serde(default)]
+    pub adr: Adr,
+    #[serde(default)]
     pub ledger: Ledger,
     /// `[health]` — thresholds for the health gate (ADR-004: gate settings
     /// are top-level tables like `[verify]`, because `[gates] health =
@@ -322,10 +324,50 @@ impl Gates {
     }
 }
 
+/// `[docs]` — the documentation pipeline (Batch 7). Sources are declared
+/// via `craftsman docs add` into `.craftsman/docs/manifest.json`; the
+/// AGENTS.md Documentation Sources table stays human-owned.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Docs {
+    /// Cache directory, project-root-relative (default `.craftsman/docs`).
     pub cache: Option<String>,
+    /// Max pages fetched per library on `docs sync` (default 200) —
+    /// llms.txt indexes can list thousands of pages.
+    pub max_pages: Option<usize>,
+}
+
+impl Docs {
+    #[must_use]
+    pub fn cache_dir(&self) -> &str {
+        self.cache.as_deref().unwrap_or(".craftsman/docs")
+    }
+    #[must_use]
+    pub fn max_pages(&self) -> usize {
+        self.max_pages.unwrap_or(200)
+    }
+}
+
+/// `[adr]` — decision-ledger settings (Batch 7).
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Adr {
+    /// Directory holding the ADR files (default `decisions`).
+    pub dir: Option<String>,
+    /// `adr stale` flags an active ADR once more than this many commits
+    /// touched its cited files after the ADR's last commit (default 10).
+    pub stale_commits: Option<u64>,
+}
+
+impl Adr {
+    #[must_use]
+    pub fn dir(&self) -> &str {
+        self.dir.as_deref().unwrap_or("decisions")
+    }
+    #[must_use]
+    pub fn stale_commits(&self) -> u64 {
+        self.stale_commits.unwrap_or(10)
+    }
 }
 
 /// `craftsman commit` settings. Committed config, not environment: the

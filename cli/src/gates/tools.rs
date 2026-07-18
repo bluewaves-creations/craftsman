@@ -375,10 +375,13 @@ fn run(program: &str, args: &[&str], dir: &Path) -> Result<(), ToolError> {
     Ok(())
 }
 
-/// sha256 via the system `shasum -a 256` (macOS) or `sha256sum` (linux) —
-/// no crypto dependency for a local integrity note. `"unavailable"` when
-/// neither exists (the manifest then records that honestly).
-fn sha256(path: &Path) -> String {
+/// sha256 via the system `shasum -a 256` (macOS) or `sha256sum` (linux).
+///
+/// No crypto dependency for a local integrity note. `"unavailable"` when
+/// neither exists (the manifest then records that honestly). Also used by
+/// the docs cache manifest (Batch 7).
+#[must_use]
+pub fn sha256(path: &Path) -> String {
     for (program, args) in [("shasum", &["-a", "256"][..]), ("sha256sum", &[][..])] {
         if let Ok(o) = Command::new(program).args(args).arg(path).output()
             && o.status.success()
