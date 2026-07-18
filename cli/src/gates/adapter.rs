@@ -477,7 +477,11 @@ fn parse_ruff_format(stdout: &str) -> Vec<Finding> {
 }
 
 /// `biome check --reporter=json`: `{"diagnostics": [...]}` with byte-span
-/// locations (no line numbers without re-deriving them — left `None`).
+/// locations. Line numbers are re-derived from the span: each diagnostic
+/// carries its file's full text in `location.sourceCode` (observed live
+/// against biome 2.2.5 — `tests/fixtures/biome-report.json`), so counting
+/// newlines up to the span start needs no separate file read. A diagnostic
+/// without a span or source text keeps `line: None` (never a guess).
 fn parse_biome(stdout: &str) -> Result<Vec<Finding>, GateError> {
     let doc = json_value("biome", stdout)?;
     let diags = doc["diagnostics"]
@@ -498,17 +502,32 @@ fn parse_biome(stdout: &str) -> Result<Vec<Finding>, GateError> {
                 .as_str()
                 .unwrap_or_default()
                 .to_owned();
+            let line = d["location"]["span"][0].as_u64().and_then(|offset| {
+                d["location"]["sourceCode"]
+                    .as_str()
+                    .map(|source| line_at_byte_offset(source, offset))
+            });
             finding(
                 "lint",
                 "biome",
                 d["category"].as_str().unwrap_or("biome"),
                 file,
-                None,
+                line,
                 d["description"].as_str().unwrap_or_default(),
                 severity,
             )
         })
         .collect())
+}
+
+/// 1-based line number of a byte offset into `source` — newline bytes
+/// counted up to (excluding) the offset, clamped to the text length.
+fn line_at_byte_offset(source: &str, offset: u64) -> u64 {
+    let end = usize::try_from(offset).map_or(source.len(), |o| o.min(source.len()));
+    // split() counts newline separators without the naive-bytecount lint
+    // (a bytecount dependency is not worth diagnostic-sized texts).
+    let newlines = source.as_bytes()[..end].split(|b| *b == b'\n').count() - 1;
+    u64::try_from(newlines).unwrap_or(u64::MAX) + 1
 }
 
 /// `swiftlint lint --reporter json`: an array of violations.
@@ -754,6 +773,7 @@ mod tests {
         let f = parse_biome(biome).expect("parses");
         assert_eq!(f[0].rule, "lint/suspicious/noDoubleEquals");
         assert_eq!(f[0].severity, Severity::High);
+        assert_eq!(f[0].line, None, "no span/source → no invented line");
 
         let swift = r#"[{"rule_id":"line_length","file":"/app/A.swift","line":12,"reason":"Line too long","severity":"Warning"}]"#;
         let f = parse_swiftlint(swift).expect("parses");
@@ -764,6 +784,34 @@ mod tests {
         let f = parse_shellcheck(sc).expect("parses");
         assert_eq!(f[0].rule, "SC2086");
         assert_eq!(f[0].line, Some(3));
+    }
+
+    /// Line parity against a REAL captured biome report
+    /// (`bunx @biomejs/biome@2.2.5 check --reporter=json bad.ts second.ts`,
+    /// captured 2026-07-18; fixture files:
+    /// bad.ts = `const x = 1;\nvar y == 2;\nif (x == y) {\n  debugger;\n}\n`,
+    /// second.ts = `let unused = 1;\nexport const ok = 2;\nwhile (true) { }\n`).
+    #[test]
+    fn biome_lines_derive_from_byte_spans_real_artifact() {
+        let report = include_str!("../../tests/fixtures/biome-report.json");
+        let f = parse_biome(report).expect("real report parses");
+        assert_eq!(f.len(), 3);
+        // `unused` sits at byte 4 of second.ts line 1.
+        assert_eq!((f[0].file.as_str(), f[0].line), ("second.ts", Some(1)));
+        // `y` of `var y == 2;` is byte 17 of bad.ts — line 2.
+        assert_eq!(f[1].rule, "lint/suspicious/noImplicitAnyLet");
+        assert_eq!((f[1].file.as_str(), f[1].line), ("bad.ts", Some(2)));
+        // `debugger` starts at byte 41 — line 4.
+        assert_eq!(f[2].rule, "lint/suspicious/noDebugger");
+        assert_eq!((f[2].file.as_str(), f[2].line), ("bad.ts", Some(4)));
+    }
+
+    #[test]
+    fn byte_offset_line_math_clamps() {
+        assert_eq!(line_at_byte_offset("a\nb\nc", 0), 1);
+        assert_eq!(line_at_byte_offset("a\nb\nc", 2), 2);
+        assert_eq!(line_at_byte_offset("a\nb\nc", 999), 3, "clamped to len");
+        assert_eq!(line_at_byte_offset("", 0), 1);
     }
 
     #[test]

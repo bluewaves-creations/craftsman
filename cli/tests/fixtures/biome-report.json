@@ -1,0 +1,305 @@
+{
+ "summary": {
+  "changed": 0,
+  "unchanged": 2,
+  "matches": 0,
+  "duration": {
+   "secs": 0,
+   "nanos": 6842917
+  },
+  "scannerDuration": {
+   "secs": 0,
+   "nanos": 423458
+  },
+  "errors": 7,
+  "warnings": 2,
+  "skipped": 0,
+  "suggestedFixesSkipped": 0,
+  "diagnosticsNotPrinted": 0
+ },
+ "diagnostics": [
+  {
+   "category": "lint/correctness/noUnusedVariables",
+   "severity": "warning",
+   "description": "This variable unused is unused.",
+   "message": [
+    {
+     "elements": [],
+     "content": "This variable "
+    },
+    {
+     "elements": [
+      "Emphasis"
+     ],
+     "content": "unused"
+    },
+    {
+     "elements": [],
+     "content": " is unused."
+    }
+   ],
+   "advices": {
+    "advices": [
+     {
+      "log": [
+       "info",
+       [
+        {
+         "elements": [],
+         "content": "Unused variables are often the result of an incomplete refactoring, typos, or other sources of bugs."
+        }
+       ]
+      ]
+     },
+     {
+      "log": [
+       "info",
+       [
+        {
+         "elements": [],
+         "content": "Unsafe fix: If this is intentional, prepend "
+        },
+        {
+         "elements": [
+          "Emphasis"
+         ],
+         "content": "unused"
+        },
+        {
+         "elements": [],
+         "content": " with an underscore."
+        }
+       ]
+      ]
+     },
+     {
+      "diff": {
+       "dictionary": "let unused_unused = 1;\nexport const ok = 2;\nwhile (true) { }\n",
+       "ops": [
+        {
+         "diffOp": {
+          "equal": {
+           "range": [
+            0,
+            4
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "delete": {
+           "range": [
+            4,
+            10
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "insert": {
+           "range": [
+            10,
+            17
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "equal": {
+           "range": [
+            17,
+            18
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "equal": {
+           "range": [
+            18,
+            61
+           ]
+          }
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "verboseAdvices": {
+    "advices": []
+   },
+   "location": {
+    "path": {
+     "file": "second.ts"
+    },
+    "span": [
+     4,
+     10
+    ],
+    "sourceCode": "let unused = 1;\nexport const ok = 2;\nwhile (true) { }\n"
+   },
+   "tags": [
+    "fixable"
+   ],
+   "source": null
+  },
+  {
+   "category": "lint/suspicious/noImplicitAnyLet",
+   "severity": "error",
+   "description": "This variable implicitly has the any type.",
+   "message": [
+    {
+     "elements": [],
+     "content": "This variable implicitly has the "
+    },
+    {
+     "elements": [
+      "Emphasis"
+     ],
+     "content": "any"
+    },
+    {
+     "elements": [],
+     "content": " type."
+    }
+   ],
+   "advices": {
+    "advices": [
+     {
+      "log": [
+       "info",
+       [
+        {
+         "elements": [],
+         "content": "Variable declarations without type annotation and initialization implicitly have the "
+        },
+        {
+         "elements": [
+          "Emphasis"
+         ],
+         "content": "any"
+        },
+        {
+         "elements": [],
+         "content": " type. Declare a type or initialize the variable with some value."
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "verboseAdvices": {
+    "advices": []
+   },
+   "location": {
+    "path": {
+     "file": "bad.ts"
+    },
+    "span": [
+     17,
+     19
+    ],
+    "sourceCode": "const x = 1;\nvar y == 2;\nif (x == y) {\n  debugger;\n}\n"
+   },
+   "tags": [],
+   "source": null
+  },
+  {
+   "category": "lint/suspicious/noDebugger",
+   "severity": "error",
+   "description": "This is an unexpected use of the debugger statement.",
+   "message": [
+    {
+     "elements": [],
+     "content": "This is an unexpected use of the "
+    },
+    {
+     "elements": [
+      "Emphasis"
+     ],
+     "content": "debugger"
+    },
+    {
+     "elements": [],
+     "content": " statement."
+    }
+   ],
+   "advices": {
+    "advices": [
+     {
+      "log": [
+       "info",
+       [
+        {
+         "elements": [],
+         "content": "Unsafe fix: Remove debugger statement"
+        }
+       ]
+      ]
+     },
+     {
+      "diff": {
+       "dictionary": "const x = 1;\nvar y == 2;\nif (x == y) {\n  debugger;\n}\n",
+       "ops": [
+        {
+         "diffOp": {
+          "equal": {
+           "range": [
+            0,
+            38
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "delete": {
+           "range": [
+            38,
+            50
+           ]
+          }
+         }
+        },
+        {
+         "diffOp": {
+          "equal": {
+           "range": [
+            50,
+            53
+           ]
+          }
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "verboseAdvices": {
+    "advices": []
+   },
+   "location": {
+    "path": {
+     "file": "bad.ts"
+    },
+    "span": [
+     41,
+     50
+    ],
+    "sourceCode": "const x = 1;\nvar y == 2;\nif (x == y) {\n  debugger;\n}\n"
+   },
+   "tags": [
+    "fixable"
+   ],
+   "source": null
+  }
+ ],
+ "command": "check"
+}
