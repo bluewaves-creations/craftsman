@@ -29,6 +29,8 @@ pub struct CliWorld {
     /// A cached scaffolded fixture at a stable path (its compiled `target/`
     /// survives across runs, like doctor's) instead of a throwaway tempdir.
     fixed_dir: Option<PathBuf>,
+    /// A sandboxed `$HOME` for the setup scenarios.
+    home: Option<tempfile::TempDir>,
     output: Option<Output>,
 }
 
@@ -55,12 +57,12 @@ impl CliWorld {
 
     fn run_craftsman(&mut self, args: &[&str]) {
         let dir = self.project_dir();
-        let output = Command::new(env!("CARGO_BIN_EXE_craftsman"))
-            .args(args)
-            .current_dir(&dir)
-            .output()
-            .expect("spawn craftsman");
-        self.output = Some(output);
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_craftsman"));
+        cmd.args(args).current_dir(&dir);
+        if let Some(home) = &self.home {
+            cmd.env("HOME", home.path());
+        }
+        self.output = Some(cmd.output().expect("spawn craftsman"));
     }
 
     const fn output(&self) -> &Output {
@@ -464,6 +466,75 @@ fn decisions_index_lists(w: &mut CliWorld, title: String) {
     assert!(
         text.lines().any(|l| l.contains(&title)),
         "decisions/index.md has no line for {title:?}:\n{text}"
+    );
+}
+
+#[given("an empty git repository directory")]
+fn empty_git_repository_directory(w: &mut CliWorld) {
+    let dir = w.project_dir();
+    let status = Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(&dir)
+        .status()
+        .expect("spawn git init");
+    assert!(status.success(), "git init failed in {}", dir.display());
+}
+
+#[given("craftsman init has already scaffolded it")]
+fn init_already_scaffolded(w: &mut CliWorld) {
+    w.run_craftsman(&["init", "--name", "demo", "--stack", "rust"]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming init must pass:\n{}",
+        w.combined_output()
+    );
+}
+
+#[given("a sandboxed home directory with a Claude Code marker")]
+fn sandboxed_home(w: &mut CliWorld) {
+    let home = tempfile::tempdir().expect("home tempdir");
+    std::fs::create_dir_all(home.path().join(".claude")).expect("claude marker");
+    w.home = Some(home);
+    // Setup needs no project; give the world a plain directory to run in.
+    let _ = w.project_dir();
+}
+
+#[when("I run craftsman setup against the sandboxed home")]
+fn run_setup_sandboxed(w: &mut CliWorld) {
+    assert!(w.home.is_some(), "a sandboxed home must be prepared first");
+    w.run_craftsman(&["setup"]);
+}
+
+#[then(expr = "the sandboxed home holds the canonical skill {string} with a sentinel")]
+fn sandboxed_home_holds_skill(w: &mut CliWorld, skill: String) {
+    let home = w.home.as_ref().expect("sandboxed home").path();
+    let dir = home.join(".agents/skills").join(&skill);
+    assert!(
+        dir.join("SKILL.md").is_file(),
+        "{} missing SKILL.md",
+        dir.display()
+    );
+    let sentinel = std::fs::read_to_string(dir.join(".craftsman-setup"))
+        .unwrap_or_else(|e| panic!("sentinel in {}: {e}", dir.display()));
+    let hash = sentinel
+        .lines()
+        .nth(1)
+        .expect("sentinel line 2 is the tree sha256");
+    assert_eq!(hash.len(), 64, "expected a sha256, got {hash:?}");
+}
+
+#[then(expr = "the sandboxed home serves {string} to Claude Code via a symlink")]
+fn sandboxed_home_serves_skill(w: &mut CliWorld, skill: String) {
+    let home = w.home.as_ref().expect("sandboxed home").path();
+    let link = home.join(".claude/skills").join(&skill);
+    let target = std::fs::read_link(&link)
+        .unwrap_or_else(|e| panic!("{} must be a symlink: {e}", link.display()));
+    assert!(
+        target.starts_with(home.join(".agents/skills")),
+        "{} must resolve into the canonical dir, points to {}",
+        link.display(),
+        target.display()
     );
 }
 

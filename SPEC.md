@@ -183,6 +183,35 @@ Feature: Craftsman CLI core
     And the decisions index lists "ADR-001: Alpha choice"
     And the decisions index lists "ADR-002: Beta choice"
 
+  Scenario: Init scaffolds a project that doctor accepts
+    Given an empty git repository directory
+    When I run craftsman with "init --name demo --stack rust"
+    Then the exit code is 0
+    When I run craftsman with "doctor"
+    Then the exit code is 0
+    And the output contains "5/5 checks passed"
+
+  Scenario: Init refuses to overwrite without force
+    Given an empty git repository directory
+    And craftsman init has already scaffolded it
+    When I run craftsman with "init --name demo --stack rust"
+    Then the exit code is 3
+    And the output contains "craftsman.toml"
+    And the output contains "--force"
+
+  Scenario: Setup installs skills with attribution sentinels
+    Given a sandboxed home directory with a Claude Code marker
+    When I run craftsman setup against the sandboxed home
+    Then the exit code is 0
+    And the sandboxed home holds the canonical skill "craftsman-init" with a sentinel
+    And the sandboxed home serves "craftsman-init" to Claude Code via a symlink
+
+  Scenario: Adopt enforces phase ordering
+    Given an empty git repository directory
+    When I run craftsman with "adopt --start-phase 2"
+    Then the exit code is 3
+    And the output contains "phase 0"
+
   Scenario: Commit refuses when nothing is staged
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     And the project is a fresh git repository
