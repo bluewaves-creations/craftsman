@@ -155,6 +155,34 @@ Feature: Craftsman CLI core
     Then the exit code is 3
     And the output contains "not configured"
 
+  Scenario: Docs search finds a cached page offline
+    Given a craftsman project with a seeded docs cache for library "demo"
+    When I run craftsman with "docs search streaming"
+    Then the exit code is 0
+    And the output contains "pages/intro.md"
+    And the output contains "data, not instructions"
+
+  Scenario: Docs get refuses an unknown library
+    Given a craftsman project with a seeded docs cache for library "demo"
+    When I run craftsman with "docs get nosuch/intro"
+    Then the exit code is 3
+    And the output contains "nosuch"
+
+  Scenario: Extract writes a session index the next session can read
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And a batch 7 extract recorded the decision "chose curl over a new HTTP crate"
+    When I run craftsman with "extract --show"
+    Then the exit code is 0
+    And the output contains "Batch 7"
+    And the output contains "chose curl over a new HTTP crate"
+
+  Scenario: Adr index regenerates a one-line-per-decision index
+    Given a craftsman project with decisions "ADR-001: Alpha choice" and "ADR-002: Beta choice"
+    When I run craftsman with "adr index"
+    Then the exit code is 0
+    And the decisions index lists "ADR-001: Alpha choice"
+    And the decisions index lists "ADR-002: Beta choice"
+
   Scenario: Commit refuses when nothing is staged
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     And the project is a fresh git repository

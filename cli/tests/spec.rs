@@ -405,6 +405,68 @@ fn health_long_function_fixture(w: &mut CliWorld) {
     git_init_add(&dir);
 }
 
+#[given(expr = "a craftsman project with a seeded docs cache for library {string}")]
+fn seeded_docs_cache(w: &mut CliWorld, lib: String) {
+    w.write("craftsman.toml", MINIMAL_CONFIG);
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let dir = w.project_dir();
+    let cache = dir.join(".craftsman/docs");
+    let pages = cache.join(format!("{lib}@1.0.0/pages"));
+    std::fs::create_dir_all(&pages).expect("mkdirs");
+    std::fs::write(
+        pages.join("intro.md"),
+        "# Intro\n\nStreaming responses are the core feature.\n",
+    )
+    .expect("write page");
+    let manifest = format!(
+        "{{\n  \"libraries\": {{\n    \"{lib}\": {{\n      \"source\": \"llms-txt\",\n      \
+         \"urls\": [\"https://example.dev/llms.txt\"],\n      \"version\": \"1.0.0\"\n    }}\n  }}\n}}\n"
+    );
+    std::fs::write(cache.join("manifest.json"), manifest).expect("write manifest");
+}
+
+#[given(expr = "a batch 7 extract recorded the decision {string}")]
+fn batch_extract_recorded(w: &mut CliWorld, decision: String) {
+    w.run_craftsman(&["extract", "--batch", "7", "--decision", &decision]);
+    assert_eq!(
+        w.output().status.code(),
+        Some(0),
+        "priming extract must pass:\n{}",
+        w.combined_output()
+    );
+}
+
+#[given(expr = "a craftsman project with decisions {string} and {string}")]
+fn project_with_decisions(w: &mut CliWorld, first: String, second: String) {
+    w.write("craftsman.toml", MINIMAL_CONFIG);
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    let dir = w.project_dir();
+    std::fs::create_dir_all(dir.join("decisions")).expect("mkdirs");
+    for (file, title) in [("ADR-001-first.md", &first), ("ADR-002-second.md", &second)] {
+        w.write(
+            &format!("decisions/{file}"),
+            &format!("# {title}\n\nStatus: accepted · Date: 2026-07-18\n\nBody.\n"),
+        );
+    }
+}
+
+#[then(expr = "the decisions index lists {string}")]
+fn decisions_index_lists(w: &mut CliWorld, title: String) {
+    let path = w.project_dir().join("decisions/index.md");
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    assert!(
+        text.lines().any(|l| l.contains(&title)),
+        "decisions/index.md has no line for {title:?}:\n{text}"
+    );
+}
+
 #[given("the project is a fresh git repository")]
 fn fresh_git_repository(w: &mut CliWorld) {
     let dir = w.project_dir();
