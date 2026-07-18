@@ -17,8 +17,10 @@
 )]
 
 mod adopt_steps;
+mod docs_steps;
 mod engine_steps;
 mod import_steps;
+mod ledger_steps;
 mod project_steps;
 mod repo_steps;
 mod setup_steps;
@@ -42,6 +44,10 @@ pub struct CliWorld {
     /// Extra environment for the next craftsman invocation (e.g. a dead
     /// release-channel endpoint for the unreachable-update scenario).
     env: Vec<(String, String)>,
+    /// Exit code of an earlier invocation in a multi-command When step.
+    prev_exit: Option<i32>,
+    /// A HEAD sha recorded by a Given, for unchanged-head assertions.
+    remembered_head: Option<String>,
     output: Option<Output>,
 }
 

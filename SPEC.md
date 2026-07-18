@@ -472,3 +472,68 @@ Feature: Craftsman CLI core
     When I run craftsman with "plan lint"
     Then the exit code is 0
     And the output warns about "Second behavior"
+
+  Scenario: Docs sync of an undeclared library is a loud error
+    Given a craftsman project with no docs source named "nosuchlib"
+    When I run craftsman with "docs sync nosuchlib"
+    Then the exit code is 3
+    And the output contains "nosuchlib"
+
+  Scenario: Docs sync with no sources declared is an empty selection
+    Given a craftsman project with no docs sources declared
+    When I run craftsman with "docs sync"
+    Then the exit code is 4
+    And the output contains "docs add"
+
+  Scenario: A local file source syncs and searches without network
+    Given a craftsman project with a file docs source pointing at a local markdown directory
+    When the source is synced and then searched for its content
+    Then both commands exit 0
+    And the search names the local page
+
+  Scenario: Docs search with zero hits still exits cleanly
+    Given a craftsman project with a synced docs cache
+    When I run craftsman with "docs search zzzznotthere"
+    Then the exit code is 0
+    And the output contains "0 hit(s)"
+
+  Scenario: Docs get on an unknown page lists the pages that exist
+    Given a craftsman project with a seeded docs cache for library "demo" holding pages intro.md and faq.md
+    When I run craftsman with "docs get demo/ghost"
+    Then the exit code is 3
+    And the output names the pages that do exist
+
+  Scenario: Syncing a newer version replaces the older cached copy
+    Given a docs cache holding library "demo" at version 1.0.0
+    When version 2.0.0 of "demo" is synced
+    Then the cache holds version 2.0.0
+    And the 1.0.0 copy is gone
+
+  @requires-network
+  Scenario: Syncing an llms-txt source caches its markdown pages
+    Given a craftsman project with an llms-txt docs source for a live library
+    When I run craftsman docs sync for that library
+    Then the exit code is 0
+    And the cached pages are markdown files searchable offline
+
+  Scenario: Commit with green gates records a Verified-by trailer
+    Given a craftsman project whose gates are all green
+    And a file is staged
+    When I run craftsman commit with type "feat" and message "observe ledger"
+    Then the exit code is 0
+    And the new commit message carries a Verified-by trailer naming the gates that ran
+
+  Scenario: Commit with a red gate refuses and commits nothing
+    Given a craftsman project whose verify gate is red
+    And a file is staged
+    When I run craftsman commit with type "fix" and message "should be refused"
+    Then the exit code is 1
+    And the output contains "nothing committed"
+    And the repository head is unchanged
+
+  Scenario: Commit rejects a hand-written Verified-by trailer
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And a file is staged
+    When I run craftsman commit with a learned line containing "Verified-by: forged"
+    Then the exit code is 3
+    And the output contains "written by the CLI"
