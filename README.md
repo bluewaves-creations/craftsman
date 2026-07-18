@@ -136,16 +136,18 @@ you can hand to a colleague lives at
 
 ## Status
 
-**v0.3.0** — released via cargo-dist (shell installer + macOS arm64/x86_64
+**v0.4.0** — released via cargo-dist (shell installer + macOS arm64/x86_64
 and Linux x86_64 tarballs). `craftsman update` self-updates from the
 release channel behind the install receipt and refreshes the installed
-skills from the binary — proven live by the v0.2.0 → v0.3.0 update itself.
-This release hardens the verdict path from the first external dogfood:
-verify never installs dependencies (a `bunx` auto-fetch once executed a
-registry dependency-confusion stub — now structurally impossible),
-`craftsman commit` can make a repository's first commit, the typescript
-scaffold produces a runner-discoverable spec, and `doctor` audits the
-pinned gate tools. Remaining honest-undone lives in the plan's gap
+skills from the binary — proven live twice (v0.2.0 → v0.3.0 → v0.4.0).
+v0.3.0 hardened the verdict path from the first external dogfood (verify
+never installs dependencies — a `bunx` auto-fetch once executed a registry
+dependency-confusion stub, now structurally impossible; first-commit
+support; runner-discoverable typescript scaffold; doctor audits tool
+pins). v0.4.0 ships the entry doctrine (ADR-006): `init` refuses
+non-empty trees, `craftsman import` brings foreign trees under the system
+audit-first with explicit debt disposal, and `[gates.qa]` carries a
+project's existing QA inside `check-all` and the commit gate. Remaining honest-undone lives in the plan's gap
 register (Batch 12) and [ADR-005](decisions/) — this project keeps a
 public list of what is *not* finished, because a system built on
 unforgeable verdicts doesn't get to round up about itself.
