@@ -78,8 +78,14 @@ Scenarios:
 
 ## Batch 4 — Python + TypeScript adapters, `--impact`
 
-- [ ] pytest-bdd adapter (cucumberjson, `-m`/`-k` mapping, exit-5 trap) + cucumber-js adapter (messages NDJSON, `--name`/`--tags`); fixture projects under `tests/fixtures/{python,ts}-todo/`.
-- [ ] `verify --impact`: per-scenario coverage capture where cheap (pytest-cov contexts first), impact-map cache, conservative fallback to `--all` (loud).
+- [x] pytest-bdd adapter (cucumberjson, `-k` mapping over derived test ids, exit-5 trap, json+junit UNDEFINED merge per ADR-002) + cucumber-js adapter (messages NDJSON primary, json fallback, `--name` exact regexes, zero-scenario count → exit 4); self-contained fixture projects under `cli/tests/fixtures/{python,ts}-todo/` with pinned lockfiles, real-run integration tests unignored (~1.5s warm each).
+- [x] `verify --impact [REF]`: python per-scenario coverage capture (pytest-cov test contexts → coverage-kind map, may exclude), rust/ts glue-kind maps (informational, never exclude), impact-map cache at `.craftsman/cache/impact-map.json`, conservative fallback to `--all` (loud) on missing map or git failure.
+- Notes: `[verify]` became per-stack tables (`[verify.rust]` etc.) as a clean break — nothing external consumed the flat keys. JS/TS runs through bun (`bunx cucumber-js`, `bun.lock` committed), never npm/npx — bun 1.3.14 reproduced every ADR-002 cucumber-js fact. pytest-bdd's real name mangling (observed 8.1.0): spaces→`_`, other non-word chars dropped, leading digits stripped — not the plan's assumed non-alnum→underscore. A computed-empty impact set exits 0 with a loud note (coverage verdict), not exit 4 (filter typo).
+
+Scenarios:
+- Verify runs every configured stack
+- Verify reports an undefined scenario as a failure
+- Impact falls back to running everything when no map exists
 
 ## Batch 5 — Swift + bash code-gen adapters
 

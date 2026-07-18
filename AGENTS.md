@@ -7,6 +7,7 @@ This repo builds the Craftsman Dev system: the `craftsman` CLI (`cli/`, Rust), t
 - Build: `cargo build` (in `cli/`; needs `PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"` on this machine)
 - Test: `cargo test` · Lint: `cargo clippy --all-targets -- -D warnings` · Format: `cargo fmt`
 - Skill validation: `uvx --from skills-ref agentskills validate skills/<skill-dir>`
+- Fixture runners: `uv` for Python, `bun`/`bunx` for JS/TS (never npm/npx/node directly) — both on PATH on this machine
 - Swift toolchain (spikes): Swift 6.3.3 via Xcode 26.x on this machine
 
 ## Hard constraints
