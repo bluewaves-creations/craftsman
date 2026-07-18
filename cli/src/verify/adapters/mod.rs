@@ -30,6 +30,15 @@ pub enum AdapterError {
         #[source]
         source: std::io::Error,
     },
+    #[error(
+        "{dep} is not installed in {dir} — declare it as a dev dependency and \
+         install it ({remedy}); craftsman never installs in the verdict path"
+    )]
+    RunnerMissing {
+        dep: String,
+        dir: PathBuf,
+        remedy: String,
+    },
     #[error("could not prepare results path {path}")]
     ResultsPath {
         path: PathBuf,

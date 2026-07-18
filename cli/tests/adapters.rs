@@ -163,3 +163,47 @@ fn pytest_bdd_scenario_filter_maps_to_k() {
     let all: Vec<&str> = report.results().map(|r| r.scenario.as_str()).collect();
     assert_eq!(all, vec!["Add an item to the list"]);
 }
+
+/// Root-cause test for the craftsman-web ledger finding 2: the cucumber-js
+/// adapter must never install dependencies in the verdict path. A project
+/// whose runner is not installed gets a deterministic refusal naming the
+/// missing dev dependency, and the committed lockfile stays byte-identical
+/// (the observed defect: `bunx` auto-installed and saved a new bun.lock).
+#[test]
+fn cucumber_js_missing_runner_refuses_without_installing() {
+    let src = fixture_project("ts-todo");
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let dir = tmp.path();
+    for entry in ["craftsman.toml", "package.json", "bun.lock"] {
+        std::fs::copy(src.join(entry), dir.join(entry)).expect("copy fixture file");
+    }
+    for rel in [
+        "features/todo.feature",
+        "features/step_definitions/steps.mjs",
+        "src/calc.ts",
+    ] {
+        let dst = dir.join(rel);
+        std::fs::create_dir_all(dst.parent().expect("parent")).expect("mkdir");
+        std::fs::copy(src.join(rel), dst).expect("copy fixture file");
+    }
+    let lock_before = std::fs::read(dir.join("bun.lock")).expect("lockfile");
+
+    let err = verify::run(dir, &Selection::All).expect_err("no runner installed must refuse");
+
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("@cucumber/cucumber"),
+        "refusal must name the missing dev dependency: {msg}"
+    );
+    assert!(
+        msg.contains("never installs"),
+        "must be the deterministic preflight refusal, not a runner artifact \
+         error after executing registry code: {msg}"
+    );
+    let lock_after = std::fs::read(dir.join("bun.lock")).expect("lockfile survives");
+    assert_eq!(lock_before, lock_after, "verdict path mutated the lockfile");
+    assert!(
+        !dir.join("node_modules").exists(),
+        "verdict path installed dependencies"
+    );
+}

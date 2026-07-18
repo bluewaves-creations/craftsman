@@ -1,9 +1,17 @@
 //! cucumber-js adapter (typescript stack), driven through bun.
 //!
-//! Invocation: `bunx cucumber-js --format message:<artifacts>/ts-msgs.ndjson
-//! --format json:<artifacts>/ts.json` in the stack's project directory (bun
-//! owns the environment; committed `bun.lock` pins the toolchain — repo
-//! rule: bun, never npm/npx). Observed with bun 1.3.14 + cucumber-js 13.1.1:
+//! Invocation: `bun run cucumber-js --format message:<artifacts>/ts-msgs.ndjson
+//! --format json:<artifacts>/ts.json` — the installed bin via `bun run`
+//! (executing the bin's script file directly under bun fails to load .mjs
+//! step definitions; observed 2026-07-18) — in
+//! the stack's project directory (bun owns the environment; committed
+//! `bun.lock` pins the toolchain — repo rule: bun, never npm/npx). The
+//! installed runner is preflighted and its absence is a deterministic
+//! refusal: `bunx` is banned here because it auto-fetches — it put the
+//! network in the verdict path, mutated a project's lockfile, and executed
+//! the registry's `cucumber-js` dependency-confusion placeholder (observed
+//! live 2026-07-18, craftsman-web ledger finding 2).
+//! Observed with bun 1.3.14 + cucumber-js 13.1.1:
 //! behavior matches the ADR-002 npm facts — exit 1 on failure with both
 //! artifacts written, and an unmatched `--name` exits 0 printing
 //! `0 scenarios` with a well-formed empty artifact, so craftsman counts
@@ -37,17 +45,8 @@ pub fn run(
     scenario_names: Option<&[String]>,
 ) -> Result<Vec<ScenarioResult>, AdapterError> {
     let (ndjson_path, json_path) = fresh_artifact_paths(artifacts_dir)?;
-
-    let mut cmd = Command::new("bunx");
-    cmd.arg("cucumber-js")
-        .arg(format!("--format=message:{}", ndjson_path.display()))
-        .arg(format!("--format=json:{}", json_path.display()));
-    if let Some(names) = scenario_names {
-        for name in names {
-            cmd.arg("--name").arg(exact_name_regex(name));
-        }
-    }
-    let command_line = "bunx cucumber-js".to_owned();
+    let mut cmd = installed_runner_command(project_dir, &ndjson_path, &json_path, scenario_names)?;
+    let command_line = "bun run cucumber-js".to_owned();
 
     let output = cmd
         .current_dir(project_dir)
@@ -83,6 +82,37 @@ pub fn run(
             .map_or_else(|| "signal".to_owned(), |c| c.to_string()),
         output_tail: tail(&stdout, 20),
     })
+}
+
+/// The `bun run cucumber-js` invocation against the *installed* runner —
+/// preflighted so a missing dev dependency is a deterministic refusal.
+/// Never `bunx`: auto-fetching put the network in the verdict path
+/// (craftsman-web ledger finding 2).
+fn installed_runner_command(
+    project_dir: &Path,
+    ndjson_path: &Path,
+    json_path: &Path,
+    scenario_names: Option<&[String]>,
+) -> Result<Command, AdapterError> {
+    let runner = project_dir.join("node_modules/.bin/cucumber-js");
+    if !runner.is_file() {
+        return Err(AdapterError::RunnerMissing {
+            dep: "@cucumber/cucumber".to_owned(),
+            dir: project_dir.to_path_buf(),
+            remedy: "bun install".to_owned(),
+        });
+    }
+    let mut cmd = Command::new("bun");
+    cmd.arg("run")
+        .arg("cucumber-js")
+        .arg(format!("--format=message:{}", ndjson_path.display()))
+        .arg(format!("--format=json:{}", json_path.display()));
+    if let Some(names) = scenario_names {
+        for name in names {
+            cmd.arg("--name").arg(exact_name_regex(name));
+        }
+    }
+    Ok(cmd)
 }
 
 /// Ensure the artifacts dir exists and both artifact slots are fresh
