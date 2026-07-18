@@ -12,6 +12,22 @@ fn empty_project_directory(w: &mut CliWorld) {
     let _ = w.project_dir();
 }
 
+#[given("any directory")]
+fn any_directory(w: &mut CliWorld) {
+    let _ = w.project_dir();
+}
+
+#[given("an empty directory that is not a git repository")]
+fn non_git_directory(w: &mut CliWorld) {
+    let _ = w.project_dir();
+}
+
+#[then(expr = "the file {word} exists")]
+fn file_exists(w: &mut CliWorld, rel: String) {
+    let path = w.project_dir().join(&rel);
+    assert!(path.is_file(), "{} does not exist", path.display());
+}
+
 /// `git init` + `git add -A` in the fixture dir (arch and health census
 /// tracked files via `git ls-files`; no commit needed).
 fn git_init_add(dir: &std::path::Path) {

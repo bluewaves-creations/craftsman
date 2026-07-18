@@ -16,6 +16,7 @@
     reason = "cucumber's step macros require `&mut World` as the first argument"
 )]
 
+mod adopt_steps;
 mod import_steps;
 mod project_steps;
 mod repo_steps;

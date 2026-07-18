@@ -335,3 +335,73 @@ Feature: Craftsman CLI core
     Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
     When I run craftsman with "commit --type vibes --message tidy"
     Then the exit code is 2
+
+  # ————— Current behavior (recovered) — Batch 11 —————
+  # Wired from SPEC.recover.md (approved by the human 2026-07-18).
+  # Every scenario below was drafted verified-only: each cited a passing
+  # test or an executed CLI observation before it was admitted here.
+
+  Scenario: An unknown flag is a usage error
+    Given any directory
+    When I run craftsman with "spec status --no-such-flag"
+    Then the exit code is 2
+
+  Scenario: Init outside a git repository suggests git init
+    Given an empty directory that is not a git repository
+    When I run craftsman with "init --name demo --stack rust"
+    Then the exit code is 3
+    And the output contains "git init"
+
+  Scenario: Init rejects an unknown stack
+    Given an empty git repository directory
+    When I run craftsman with "init --name demo --stack cobol"
+    Then the exit code is 3
+    And the output contains "cobol"
+    And the output contains "known stacks"
+
+  Scenario: Adopt status before any phase names phase 0 as next
+    Given an empty git repository directory
+    When I run craftsman with "adopt --status"
+    Then the exit code is 0
+    And the output contains "next phase is 0"
+
+  Scenario: Adopt refuses to start the same phase twice
+    Given an empty git repository directory
+    And adoption phase 0 has been started
+    When I run craftsman with "adopt --start-phase 0"
+    Then the exit code is 3
+    And the output contains "already"
+
+  Scenario: Adopt phase 1 scaffolds a gates-off config and a baseline ADR
+    Given an empty git repository directory
+    And adoption phase 0 has been started and completed
+    When I run craftsman with "adopt --start-phase 1"
+    Then the exit code is 0
+    And the file craftsman.toml exists
+    And the file decisions/ADR-000-adoption-baseline.md exists
+
+  Scenario: Adopt phase 1 leaves an existing config untouched
+    Given a git repository with a hand-written craftsman.toml naming the project "keepme"
+    And adoption phase 0 has been started and completed
+    When I run craftsman with "adopt --start-phase 1"
+    Then the exit code is 0
+    And the config still names the project "keepme"
+
+  Scenario: Learnings accumulate across batch extracts
+    Given a craftsman project where batch 1 extracted the failed approach "first dead end"
+    And batch 2 extracted the failed approach "second dead end"
+    When I run craftsman with "extract --show"
+    Then the exit code is 0
+    And the learnings record contains both "first dead end" and "second dead end"
+
+  Scenario: Extract show before any extract is a loud error
+    Given a craftsman project where no extract has ever run
+    When I run craftsman with "extract --show"
+    Then the exit code is 3
+    And the output contains "no session extract yet"
+
+  Scenario: The decisions index never lists itself
+    Given a craftsman project with the decision "ADR-001: Alpha choice" and a previously generated index
+    When I run craftsman with "adr index"
+    Then the exit code is 0
+    And the regenerated index lists exactly 1 decision
