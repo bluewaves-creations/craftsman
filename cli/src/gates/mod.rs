@@ -14,6 +14,7 @@
 //! tool resolution (first use).
 
 pub mod adapter;
+pub mod arch;
 pub mod baseline;
 pub mod check_all;
 pub mod health;
@@ -164,6 +165,13 @@ pub enum GateError {
          verify, lint, security"
     )]
     UnsupportedGate { gate: String },
+    #[error("gate {gate} is not configured — {hint} (see `craftsman {gate} --help`)")]
+    NotConfigured { gate: &'static str, hint: String },
+    #[error(
+        "invalid arch rule {rule:?} — expected \"A -> B\" with path \
+         prefixes relative to the stack root"
+    )]
+    BadArchRule { rule: String },
 }
 
 /// FNV-1a 64-bit — a deterministic, dependency-free content hash for
