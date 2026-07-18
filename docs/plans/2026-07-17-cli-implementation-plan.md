@@ -325,4 +325,4 @@ Tasks (coarse until ADR-006 approval):
 
 Success: craftsman verify exits 0 with the three merged scenarios green; craftsman-web check-all runs its converted qa gates
 
-*(Release boundary: v0.4.0 when Batches 15+16 land.)*
+*(Boundary close-out 2026-07-18 — success line MET on this repo's side: [gates.qa.<name>] parsed (strict-only by construction), qa gates run inside check-all after the static set — uncached, fail-fast, exit-127 distinguished as the misdeclared-gate exit-3 — and therefore inside the commit gate and Verified-by trailer (GateSummary.gate widened to String for the dynamic qa:<name> rows). Three scenarios merged — verify 50 green / 1 network-gated; SPEC.delta.md fully merged and deleted. The craftsman-web conversion proof is dogfood Phase D6, after this release.)*

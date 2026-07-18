@@ -95,6 +95,7 @@ findings, auto-ratcheting down as debt is paid.
 | `security` | gitleaks · semgrep · osv-scanner | never narrowed by `--changed` |
 | `health` | function/file length, complexity, duplication | craftsman's own deterministic metrics |
 | `mutate` | cargo-mutants / mutmut / Stryker, diff-scoped | full runs need `--all --yes-slow` |
+| `qa` | project-declared commands (`[gates.qa.<name>]`) | your existing QA suite as gates; never a substitute for `verify` |
 | `perf` `a11y` `visual` | lhci/k6 · playwright+axe · screenshot specs | refuse loudly when unconfigured |
 
 Exit codes everywhere: `0` pass · `1` verification failure · `2` usage ·
@@ -112,8 +113,8 @@ them: Apple's skills own platform idiom, Craftsman owns process.
 
 ## Self-hosting
 
-This repo eats its own cooking: `SPEC.md` at the root holds **44
-scenarios** (43 hermetic, one `@requires-network`, run live against the
+This repo eats its own cooking: `SPEC.md` at the root holds **51
+scenarios** (50 hermetic, one `@requires-network`, run live against the
 real release channel) executed by cucumber-rs through `craftsman verify`;
 every commit goes through `craftsman commit`; CI finishes with
 `check-all` on fresh macOS and Linux runners plus a Swift-on-Linux

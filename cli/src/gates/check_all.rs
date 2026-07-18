@@ -41,7 +41,7 @@ pub enum GateVerdict {
 /// One gate's row in the summary.
 #[derive(Debug, serde::Serialize)]
 pub struct GateSummary {
-    pub gate: &'static str,
+    pub gate: String,
     pub mode: String,
     pub verdict: GateVerdict,
     pub detail: String,
@@ -80,7 +80,7 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
     for (gate, mode) in config.gates.by_name() {
         let Some(mode) = mode.filter(|m| *m != GateMode::Off) else {
             gates.push(GateSummary {
-                gate,
+                gate: gate.to_owned(),
                 mode: "off".to_owned(),
                 verdict: GateVerdict::Off,
                 detail: "not enabled in craftsman.toml".to_owned(),
@@ -94,7 +94,7 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
         {
             eprintln!("gate {gate}: inputs unchanged since last green run — skipped (cache hit)");
             gates.push(GateSummary {
-                gate,
+                gate: gate.to_owned(),
                 mode: mode.to_string(),
                 verdict: GateVerdict::CachedGreen,
                 detail: "unchanged since last green run (cache)".to_owned(),
@@ -121,6 +121,8 @@ pub fn run(root: &Path, config: &Config, changed: bool) -> Result<Report, GateEr
             break;
         }
     }
+
+    super::qa::run_all(root, config, &mut gates)?;
 
     Ok(Report { gates, outcomes })
 }
@@ -179,7 +181,7 @@ fn summarize(gate: &'static str, outcome: &GateOutcome) -> GateSummary {
         eprintln!("{ratchet}");
     }
     GateSummary {
-        gate,
+        gate: gate.to_owned(),
         mode: outcome.mode.to_string(),
         verdict: if outcome.passed() {
             GateVerdict::Green
@@ -224,7 +226,7 @@ fn run_verify(root: &Path, changed: bool) -> Result<GateSummary, GateError> {
         ),
     };
     Ok(GateSummary {
-        gate: "verify",
+        gate: "verify".to_owned(),
         mode: "strict".to_owned(),
         verdict,
         detail,

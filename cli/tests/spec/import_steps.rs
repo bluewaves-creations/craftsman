@@ -100,3 +100,57 @@ fn output_lists_conversion_candidate(w: &mut CliWorld, name: String) {
         "{name:?} not listed as a candidate: {line}"
     );
 }
+
+fn qa_gate_project(w: &mut CliWorld, command: &str, with_git: bool) {
+    w.write(
+        "craftsman.toml",
+        &format!(
+            "[project]\nname = \"fixture\"\nstacks = [\"rust\"]\n\n[gates.qa.smoke]\ncommand = \"{command}\"\n"
+        ),
+    );
+    w.write(
+        "SPEC.md",
+        "Feature: Fixture feature\n\n  Scenario: First behavior\n",
+    );
+    if with_git {
+        let dir = w.project_dir();
+        git_init(&dir, true);
+        for args in [
+            ["config", "user.name", "fixture"],
+            ["config", "user.email", "fixture@example.invalid"],
+        ] {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(&dir)
+                .status()
+                .expect("spawn git config");
+            assert!(status.success());
+        }
+    }
+}
+
+#[given("a craftsman project declaring a qa gate whose command succeeds")]
+fn qa_gate_green_project(w: &mut CliWorld) {
+    qa_gate_project(w, "true", false);
+}
+
+#[given("a craftsman project declaring a qa gate whose command fails")]
+fn qa_gate_red_project(w: &mut CliWorld) {
+    qa_gate_project(w, "false", true);
+}
+
+#[given("a craftsman project declaring a qa gate whose command does not exist")]
+fn qa_gate_missing_command_project(w: &mut CliWorld) {
+    qa_gate_project(w, "craftsman-definitely-missing-xyz", false);
+}
+
+#[then("no commit was created")]
+fn no_commit_created(w: &mut CliWorld) {
+    let ok = Command::new("git")
+        .args(["rev-parse", "--verify", "-q", "HEAD"])
+        .current_dir(w.project_dir())
+        .status()
+        .expect("spawn git")
+        .success();
+    assert!(!ok, "a commit exists despite the red qa gate");
+}

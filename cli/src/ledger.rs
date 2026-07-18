@@ -148,7 +148,7 @@ pub fn commit(cwd: &Path, request: &CommitRequest) -> Result<CommitReport, Ledge
         .iter()
         .filter(|g| g.verdict != GateVerdict::Off)
         .map(|g| GateRun {
-            gate: g.gate.to_owned(),
+            gate: g.gate.clone(),
             passed: g.verdict != GateVerdict::Red,
             detail: g.detail.clone(),
         })

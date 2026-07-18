@@ -300,6 +300,24 @@ Feature: Craftsman CLI core
     Then the exit code is 0
     And the output lists "qa" as a conversion candidate
 
+  Scenario: A declared qa gate runs inside check-all
+    Given a craftsman project declaring a qa gate whose command succeeds
+    When I run craftsman with "check-all"
+    Then the exit code is 0
+    And the output contains "qa:smoke"
+
+  Scenario: A red qa gate blocks commit
+    Given a craftsman project declaring a qa gate whose command fails
+    When I run craftsman commit for the staged tree
+    Then the exit code is 1
+    And no commit was created
+
+  Scenario: A qa gate whose command is missing refuses loudly
+    Given a craftsman project declaring a qa gate whose command does not exist
+    When I run craftsman with "check-all"
+    Then the exit code is 3
+    And the output contains "craftsman-definitely-missing-xyz"
+
   Scenario: Adopt enforces phase ordering
     Given an empty git repository directory
     When I run craftsman with "adopt --start-phase 2"

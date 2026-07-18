@@ -21,6 +21,7 @@ mod epilogue;
 pub mod health;
 pub mod lint;
 pub mod mutate;
+mod qa;
 pub mod runtime;
 pub mod scope;
 pub mod security;
@@ -136,6 +137,18 @@ impl GateOutcome {
 pub enum GateError {
     #[error(transparent)]
     Config(#[from] ConfigError),
+    #[error("qa gate {name}: cannot spawn `sh -c {command}`")]
+    QaSpawn {
+        name: String,
+        command: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "qa gate {name}: command not found: `{command}` (exit 127) — \
+         declare a command that exists on this machine, or remove the gate"
+    )]
+    QaMissing { name: String, command: String },
     #[error(transparent)]
     Tool(#[from] tools::ToolError),
     #[error(transparent)]

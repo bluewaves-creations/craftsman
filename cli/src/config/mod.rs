@@ -152,6 +152,20 @@ pub struct Gates {
     /// Version pins; adapters install hermetically (Batch 6a).
     #[serde(default)]
     pub tools: BTreeMap<String, String>,
+    /// `[gates.qa.<name>]` — project QA commands as first-class gates
+    /// under check-all orchestration (ADR-006 §5). Declared = strict;
+    /// there is no baseline mode — a command verdict has no findings to
+    /// fingerprint. Never a substitute for `verify`.
+    #[serde(default)]
+    pub qa: BTreeMap<String, QaGate>,
+}
+
+/// One declared QA command gate.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct QaGate {
+    /// Run via `sh -c` in the project root; exit 0 is the only green.
+    pub command: String,
 }
 
 impl Gates {
