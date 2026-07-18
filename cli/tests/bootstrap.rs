@@ -234,3 +234,33 @@ fn row(report: &setup::Report, scope: &str, skill: &str) -> &'static str {
         .unwrap_or_else(|| panic!("no row for {scope}/{skill}"))
         .action
 }
+
+/// Root-cause test for the craftsman-web ledger finding 1: `craftsman init
+/// --stack typescript` without `--spec` scaffolded `SPEC.md`, which the
+/// cucumber-js runner never discovers (`features/**/*.feature`) — the very
+/// first verify exits 4 with 0 scenarios. The default must be a feature
+/// file the runner actually reads.
+#[test]
+fn init_typescript_default_spec_is_a_discoverable_feature_file() {
+    let tmp = repo();
+    let output = Command::new(env!("CARGO_BIN_EXE_craftsman"))
+        .args(["init", "--name", "web", "--stack", "typescript"])
+        .current_dir(tmp.path())
+        .output()
+        .expect("init runs");
+    assert!(output.status.success(), "{output:?}");
+
+    assert!(
+        tmp.path().join("features/web.feature").is_file(),
+        "typescript scaffold must place the spec where cucumber-js discovers it"
+    );
+    assert!(
+        !tmp.path().join("SPEC.md").exists(),
+        "no orphan markdown spec the runner would silently ignore"
+    );
+    let config = std::fs::read_to_string(tmp.path().join("craftsman.toml")).expect("config");
+    assert!(
+        config.contains("spec = \"features/web.feature\""),
+        "config must point at the feature file: {config}"
+    );
+}

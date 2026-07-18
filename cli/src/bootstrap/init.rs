@@ -29,9 +29,25 @@ pub const KNOWN_STACKS: &[&str] = &[
 pub struct Request {
     pub name: String,
     pub stacks: Vec<String>,
-    /// Spec file name (default `SPEC.md`).
-    pub spec: String,
+    /// Spec file name; `None` picks the stack-appropriate default
+    /// ([`default_spec`]).
+    pub spec: Option<String>,
     pub force: bool,
+}
+
+/// The default spec path per stack set.
+///
+/// The typescript runner (cucumber-js) discovers `features/**/*.feature`
+/// and never reads a markdown spec — scaffolding `SPEC.md` there yields
+/// 0 scenarios and exit 4 on the first verify (craftsman-web ledger
+/// finding 1). Every other stack keeps `SPEC.md`.
+#[must_use]
+pub fn default_spec(name: &str, stacks: &[String]) -> String {
+    if stacks.iter().any(|s| s == "typescript") {
+        format!("features/{name}.feature")
+    } else {
+        "SPEC.md".to_owned()
+    }
 }
 
 /// Errors are exit-3 territory: nothing was scaffolded.
@@ -84,17 +100,21 @@ fn targets(request: &Request, version: &str) -> Vec<(String, String)> {
         .map(|s| format!("\"{s}\""))
         .collect::<Vec<_>>()
         .join(", ");
+    let spec_rel = request
+        .spec
+        .clone()
+        .unwrap_or_else(|| default_spec(&request.name, &request.stacks));
     let config = templates::INIT_CONFIG_TOML
         .replace("__NAME__", &request.name)
         .replace("__STACKS__", &stacks)
-        .replace("__SPEC__", &request.spec)
+        .replace("__SPEC__", &spec_rel)
         .replace("__VERSION__", version);
     let agents = templates::AGENTS_MD.replace("__NAME__", &request.name);
     let spec = templates::SPEC_MD.replace("__NAME__", &request.name);
     vec![
         ("craftsman.toml".to_owned(), config),
         ("AGENTS.md".to_owned(), agents),
-        (request.spec.clone(), spec),
+        (spec_rel, spec),
         (
             ".claude/settings.json".to_owned(),
             templates::CLAUDE_SETTINGS_JSON.to_owned(),
@@ -248,7 +268,7 @@ mod tests {
         Request {
             name: "demo".to_owned(),
             stacks: vec!["rust".to_owned()],
-            spec: "SPEC.md".to_owned(),
+            spec: None,
             force: false,
         }
     }

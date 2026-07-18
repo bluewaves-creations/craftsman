@@ -14,9 +14,10 @@ pub struct InitArgs {
     /// typescript | rust | bash
     #[arg(long = "stack", required = true)]
     pub stack: Vec<String>,
-    /// Spec file name
-    #[arg(long, default_value = "SPEC.md")]
-    pub spec: String,
+    /// Spec file name (default: SPEC.md — except typescript, whose
+    /// runner only discovers feature files: features/<name>.feature)
+    #[arg(long)]
+    pub spec: Option<String>,
     /// Overwrite existing scaffold files (still listed in the report)
     #[arg(long)]
     pub force: bool,
