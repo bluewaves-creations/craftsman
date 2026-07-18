@@ -161,3 +161,39 @@ Scenarios:
 ---
 
 Boundary rule: after each batch — full test suite, clippy `-D warnings`, gap check against this plan, ledger commit, revise remaining batches. Batches 4+ get task-level detail at the boundary before them, per the planning conventions.
+
+---
+
+## Batch 9 — 100% production grade (gap closure before dogfood)
+
+*(planned 2026-07-18 from the v0.1.0 audit: every honest-undone item across batches 2–8 plus the four audit findings. Definition of "100%", mechanical: (a) the honest-undone register is empty — each item either implemented and proven, or descoped by an ADR the human approved; (b) all baselines at zero and their gates strict, or scope-excluded by committed config with recorded rationale; (c) every gate live-proven at least once; (d) CI green on a real remote; (e) contract sweep covers every command incl. network paths. Split 9a/9b/9c, sequential boundaries.)*
+
+### Batch 9a — Apple completion (the user's flagship stack)
+
+- [ ] **xcodebuild adapter** (`verify/adapters/xcodebuild.rs`): `[verify.swift] scheme`+`destination` drives `xcodebuild test -scheme … -destination … -resultBundlePath <tmp>.xcresult` (+ `-only-testing:` from ADR-001 identity for --scenario/--batch); parse `xcrun xcresulttool get test-results tests` JSON (Xcode 16+ subcommand, undocumented-but-stable schema — build the parser from a REAL captured xcresult of the S1 spike package opened as an Xcode project, committed as fixture); exit 65 is ambiguous — always parse the bundle, never trust the code; map stub-marker failures → Undefined (same dialect as SwiftPM). Live round-trip proof on this machine (Xcode 27 present): scaffold an app-shaped fixture, observe pass/undefined/fail through craftsman.
+- [ ] **Apple a11y path**: `[a11y] scheme`/`ui-test-target` variant — the gate runs `xcodebuild test -only-testing:<UI target>` where user-land XCUITests call `performAccessibilityAudit()`; findings from the xcresult. Template UI-test file emitted by `spec gen --a11y-stub` (write-once). Live-proven against the fixture app once.
+- [ ] **SwiftLint native baseline**: `gate baseline lint` writes `--write-baseline` when a swift stack is configured; proven against a seeded-violation swift fixture (closes the 6a honest-undone).
+- [ ] **Swift/TS/Rust impact narrowing**: per-scenario file maps from what each runner already tells us — ts: pickle URIs + step-definition files from NDJSON; swift: generated-glue file + Steps.swift; rust: harness target file. Narrowing rule stays conservative (unmapped = run; any glue change = run all) but a docs-only or unrelated-stack diff now genuinely narrows. Behavior per stack documented + unit-tested (closes the 4/8 honest-undones).
+- Success: an xcodeproj app fixture goes red→green through `craftsman verify` on this machine; a11y gate live-proven once; `gate baseline lint` writes a real SwiftLint baseline; impact narrows in a proven case per stack.
+
+### Batch 9b — Verification completeness + contract polish
+
+- [ ] **py/ts mutate e2e through craftsman**: fixture-project runs asserting score parsing + threshold verdicts (mutmut 2.5.1 aggregate limitation stays documented; Stryker gets a committed minimal config in the ts fixture). 
+- [ ] **Runtime gates live-proven once**: a tiny committed static-site fixture (plain html + one playwright spec + one axe spec + lhci config); `visual`, `a11y` (web path), `perf` each run live locally behind a browser-available check that skips loudly (closes "schema-doc-constructed samples" and gives the parsers real artifacts as fixtures).
+- [ ] **biome line numbers**: re-derive line/col from byte spans (read the file, count); finding parity test.
+- [ ] **`spec status` reads recorded results**: verify runs persist normalized results to `.craftsman/cache/last-verify.json`; `spec status` shows green/red/unknown per scenario + per-batch rollup (closes the Batch 2 deferral).
+- [ ] **Contract sweep completion**: `--json` happy-path coverage for security/mutate/docs-sync via fixtures (offline security run against pre-resolved tools; mutate on the tiny rust fixture; docs sync against a local file source); every command now swept.
+- [ ] **docs sources docc/objects-inv/dts implemented**: docc = `swift package generate-documentation --enable-experimental-markdown-output` into the cache (probe support; if the toolchain flag is absent, record observed reality and keep refusal WITH the probe result); objects-inv = parse the zlib inventory (name→url index; search over the index, pages fetched per-page-md on demand); dts = harvest `node_modules/<pkg>/**/*.d.ts` into the cache verbatim. Each with a real dogfood target (swift-nio or the spike package for docc; a pydantic objects.inv; zod's dts from the s2 sample).
+- Success: contract sweep green over the full command surface; all six docs source types sync something real; runtime gates each have one live artifact in fixtures.
+
+### Batch 9c — Debt zero + infrastructure
+
+- [ ] **Gate scope config** (`[gates] exclude = ["spikes/**"]`): spikes are frozen evidence, not shipped code — committed exclusion with rationale comment; security re-baseline → expected 0 (the 2 RUSTSEC hits live in a spike sample lockfile); ALSO `cargo update -p quick-xml` in the spike sample so the advisory is actually gone, belt and braces (lockfile refresh ≠ evidence tampering; note in commit body).
+- [ ] **Health burn-down to strict**: refactor the real offenders in cli/src (health.rs 8 findings, normalize.rs 5, remainder list from `gate status --json`) in small `refactor:` commits (fix/refactor separation holds; verify green after each); spikes excluded by scope. Target: `gate strict health` flips (baseline 0). If any single finding is genuinely correct-as-is, a scoped allow with reason comment counts as resolution — no naked suppressions.
+- [ ] **GitHub remote + CI first run** *(human-gated: org/name/visibility — ask, do not invent)*: create remote, push, confirm CI green on both runners (first REAL CI execution); `dist generate` release workflow committed once the repository URL exists.
+- [ ] **swift-linux CI**: verify swift-actions/setup-swift (or swiftly) Swift 6.2+ on ubuntu-24.04 by running it (a throwaway workflow on the new remote is the honest probe); enable the parked job or re-park with the observed failure.
+- [ ] **Cursor hooks template**: verify the current hooks schema against Cursor's docs (network available); activate the template or keep inert citing the verified shape/absence.
+- [ ] **`craftsman update` real path**: axoupdater against the GitHub Releases once they exist; falls back to the current guidance when no release channel — implement behind release availability (depends on the remote task).
+- [ ] **ADR-005 — descope register**: anything above that lands as "won't do for 0.2" (candidates: none expected; xcodebuild-on-Linux is N/A by nature) gets its ADR line, human-approved; the honest-undone register in this plan is then EMPTY.
+- Success: `gate status` shows security+health strict at 0; CI green on the remote; the register empty or ADR'd; tag v0.2.0.
+
