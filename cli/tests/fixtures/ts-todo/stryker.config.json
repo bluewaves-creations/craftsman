@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/api/schema/stryker-core.json",
+  "testRunner": "command",
+  "commandRunner": { "command": "bun test src" },
+  "reporters": ["json"],
+  "incremental": true,
+  "mutate": ["src/calc.ts"],
+  "tempDirName": ".stryker-tmp"
+}

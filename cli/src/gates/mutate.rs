@@ -460,7 +460,9 @@ fn python_mutate(
         sources.join(","),
         "--tests-dir".to_owned(),
         tests_dir,
-        "--no-progress".to_owned(),
+        // NOT --no-progress: observed live (2.5.1, e2e run 2026-07-18),
+        // that flag suppresses the counts line entirely — the spinner's
+        // final `\r`-delimited segment is the only counts report.
         "--simple-output".to_owned(),
     ];
     eprintln!("gate mutate: mutmut@{version} ({}) …", scope_word(scope));
@@ -512,35 +514,36 @@ fn python_mutate(
     })
 }
 
-/// Parse the final mutmut progress line:
-/// `⠹ 3/3  KILLED 1  TIMEOUT 0  SUSPICIOUS 0  SURVIVED 2  SKIPPED 0`
-/// (observed live against mutmut 2.5.1). Suspicious mutants count against
-/// the score (not proven killed) but are not reported as survivors.
+/// Parse the final mutmut progress segment:
+/// `⠼ 2/2  KILLED 0  TIMEOUT 0  SUSPICIOUS 0  SURVIVED 2  SKIPPED 0`
+/// (observed live against mutmut 2.5.1, e2e run 2026-07-18). The spinner
+/// separates progress updates with bare `\r` (not `\r\n`), so segments are
+/// split on both; `--simple-output`'s legend also contains the KILLED
+/// keyword without counts, so the LAST segment that fully parses wins.
+/// Suspicious mutants count against the score (not proven killed) but are
+/// not reported as survivors.
 fn parse_mutmut_counts(stdout: &str) -> Result<Tally, GateError> {
-    let line = stdout
-        .lines()
-        .rev()
-        .find(|l| l.contains("KILLED"))
-        .ok_or_else(|| GateError::Parse {
-            tool: "mutmut",
-            detail: "no KILLED/SURVIVED counts in mutmut output".to_owned(),
-        })?;
-    let grab = |key: &str| -> Result<usize, GateError> {
+    let grab = |line: &str, key: &str| -> Option<usize> {
         line.split_whitespace()
             .skip_while(|w| *w != key)
             .nth(1)
             .and_then(|n| n.parse().ok())
-            .ok_or_else(|| GateError::Parse {
-                tool: "mutmut",
-                detail: format!("cannot read {key} count from: {line}"),
-            })
     };
-    Ok(Tally {
-        caught: grab("KILLED")?,
-        timeout: grab("TIMEOUT")?,
-        missed: grab("SURVIVED")? + grab("SUSPICIOUS")?,
-        unviable: grab("SKIPPED")?,
-    })
+    stdout
+        .split(['\n', '\r'])
+        .rev()
+        .find_map(|line| {
+            Some(Tally {
+                caught: grab(line, "KILLED")?,
+                timeout: grab(line, "TIMEOUT")?,
+                missed: grab(line, "SURVIVED")? + grab(line, "SUSPICIOUS")?,
+                unviable: grab(line, "SKIPPED")?,
+            })
+        })
+        .ok_or_else(|| GateError::Parse {
+            tool: "mutmut",
+            detail: "no KILLED/SURVIVED counts segment in mutmut output".to_owned(),
+        })
 }
 
 // --------------------------------------------------------------- typescript
@@ -753,6 +756,19 @@ mod tests {
         assert_eq!(tally.missed, 2);
         assert_eq!(tally.unviable, 0);
         assert!(parse_mutmut_counts("no counts here").is_err());
+    }
+
+    #[test]
+    fn mutmut_counts_parse_the_real_cr_delimited_spinner() {
+        // Captured live from the e2e run (mutmut 2.5.1, 2026-07-18):
+        // --simple-output prints a KILLED legend line without counts, and
+        // the spinner separates stale progress segments with bare \r —
+        // only the final segment carries the true tally.
+        let stdout = "Legend for output:\nKILLED Killed mutants.   The goal is for everything to end up in this bucket.\n\n2. Checking mutants\n\u{2838} 1/2  KILLED 0  TIMEOUT 0  SUSPICIOUS 0  SURVIVED 1  SKIPPED 0\r\u{283c} 2/2  KILLED 0  TIMEOUT 0  SUSPICIOUS 0  SURVIVED 2  SKIPPED 0\n";
+        let tally = parse_mutmut_counts(stdout).expect("parses");
+        assert_eq!(tally.caught, 0);
+        assert_eq!(tally.missed, 2, "the FINAL segment wins, not a stale one");
+        assert_eq!(tally.unviable, 0);
     }
 
     #[test]
