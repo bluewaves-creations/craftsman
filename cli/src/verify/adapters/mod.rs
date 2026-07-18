@@ -2,6 +2,7 @@
 //! Batch 4 adds python (pytest-bdd) and typescript (cucumber-js); swift/bash
 //! code-gen arrive in Batch 5.
 
+pub mod cucumber_js;
 pub mod cucumber_rs;
 pub mod pytest_bdd;
 

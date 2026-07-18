@@ -14,9 +14,16 @@
 //! Requirements: `uv` and `bun` on PATH (AGENTS.md toolchain).
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use craftsman::verify::normalize::Status;
 use craftsman::verify::{self, Outcome, Selection};
+
+/// Verify runs against the same fixture project share its
+/// `.craftsman/cache/verify` artifact paths — serialize them per fixture
+/// (cargo runs test functions concurrently).
+static PYTHON_TODO: Mutex<()> = Mutex::new(());
+static TS_TODO: Mutex<()> = Mutex::new(());
 
 fn fixture_project(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -43,6 +50,7 @@ fn assert_known_trio(results: &[(String, Status)], runner: &str) {
 
 #[test]
 fn pytest_bdd_fixture_end_to_end() {
+    let _guard = PYTHON_TODO.lock().expect("fixture lock");
     let dir = fixture_project("python-todo");
     let report = verify::run(&dir, &Selection::All).expect("python fixture verify runs");
 
@@ -67,8 +75,57 @@ fn pytest_bdd_fixture_end_to_end() {
     );
 }
 
+/// `bun install --frozen-lockfile` when the fixture's `node_modules` is
+/// absent (fresh checkout) — the committed `bun.lock` pins the resolution.
+fn ensure_bun_install(dir: &Path) {
+    if dir.join("node_modules").is_dir() {
+        return;
+    }
+    let status = std::process::Command::new("bun")
+        .args(["install", "--frozen-lockfile"])
+        .current_dir(dir)
+        .status()
+        .expect("spawn bun install");
+    assert!(status.success(), "bun install failed in {}", dir.display());
+}
+
+#[test]
+fn cucumber_js_fixture_end_to_end() {
+    let _guard = TS_TODO.lock().expect("fixture lock");
+    let dir = fixture_project("ts-todo");
+    ensure_bun_install(&dir);
+    let report = verify::run(&dir, &Selection::All).expect("ts fixture verify runs");
+
+    assert_eq!(report.outcome, Outcome::Failed);
+    assert_eq!(report.stacks.len(), 1);
+    assert_eq!(report.stacks[0].stack, "typescript");
+    let trio: Vec<(String, Status)> = report.stacks[0]
+        .results
+        .iter()
+        .map(|r| (r.scenario.clone(), r.status))
+        .collect();
+    assert_known_trio(&trio, "cucumber-js");
+}
+
+#[test]
+fn cucumber_js_scenario_filter_maps_to_name() {
+    let _guard = TS_TODO.lock().expect("fixture lock");
+    let dir = fixture_project("ts-todo");
+    ensure_bun_install(&dir);
+    let report = verify::run(
+        &dir,
+        &Selection::Scenario("Add an item to the list".to_owned()),
+    )
+    .expect("filtered ts verify runs");
+
+    assert_eq!(report.outcome, Outcome::Passed);
+    let all: Vec<&str> = report.results().map(|r| r.scenario.as_str()).collect();
+    assert_eq!(all, vec!["Add an item to the list"]);
+}
+
 #[test]
 fn pytest_bdd_scenario_filter_maps_to_k() {
+    let _guard = PYTHON_TODO.lock().expect("fixture lock");
     let dir = fixture_project("python-todo");
     let report = verify::run(
         &dir,

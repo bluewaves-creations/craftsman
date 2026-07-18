@@ -25,7 +25,7 @@ use crate::config::{Config, ConfigError, VerifyStack};
 use crate::plan::{self, PlanError};
 use crate::spec::{self, SpecError};
 use adapters::AdapterError;
-use adapters::{cucumber_rs, pytest_bdd};
+use adapters::{cucumber_js, cucumber_rs, pytest_bdd};
 use normalize::{ScenarioResult, Status};
 
 /// What to run: everything, one plan batch, or one scenario by exact name.
@@ -59,8 +59,6 @@ pub enum VerifyError {
         runner: String,
         supported: &'static str,
     },
-    #[error("stack {stack:?} is recognized but its adapter is not wired yet (Batch 4 in progress)")]
-    StackPending { stack: String },
 }
 
 /// Scenario counts by status.
@@ -272,8 +270,14 @@ fn run_stack(
             let run = pytest_bdd::run(&project_dir, &artifacts, tests_dir, filter, false)?;
             Ok(run.results)
         }
-        // cucumber-js lands next in Batch 4; swift/bash in Batch 5.
-        other => Err(VerifyError::StackPending {
+        "typescript" => {
+            check_runner("typescript", "cucumber-js")?;
+            let artifacts = root.join(".craftsman").join("cache").join("verify");
+            Ok(cucumber_js::run(&project_dir, &artifacts, filter)?)
+        }
+        // Defensive: `run` validates stack names upfront, so this arm only
+        // fires if the two lists ever drift (swift/bash arrive in Batch 5).
+        other => Err(VerifyError::UnknownStack {
             stack: other.to_owned(),
         }),
     }

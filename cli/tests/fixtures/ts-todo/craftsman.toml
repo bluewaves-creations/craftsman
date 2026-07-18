@@ -1,0 +1,9 @@
+# Fixture project for the cucumber-js adapter integration tests
+# (cli/tests/adapters.rs). The spec is the feature file itself.
+[project]
+name = "ts-todo"
+stacks = ["typescript"]
+spec = "features/todo.feature"
+
+[verify.typescript]
+runner = "cucumber-js"
