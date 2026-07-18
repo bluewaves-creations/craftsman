@@ -1,10 +1,12 @@
 //! One test per real runner fixture in `tests/fixtures/` — ported from
 //! `spikes/s2-normalizer` (see ADR-002 for the commands that produced them),
-//! plus the cucumber-rs `output-json` fixture backing ADR-003.
+//! plus the cucumber-rs `output-json` fixture backing ADR-003 and the Swift
+//! Testing event-stream fixtures backing ADR-001 (`spikes/s1-swift-codegen`,
+//! Batch 5).
 
 use craftsman::verify::normalize::{
     CucumberJsonDialect, JunitDialect, ScenarioResult, Status, parse_cucumber_json, parse_junit,
-    parse_messages_ndjson,
+    parse_messages_ndjson, parse_swift_events_jsonl,
 };
 
 fn fixture(name: &str) -> String {
@@ -162,6 +164,98 @@ fn junit_from_bats() {
         ]
     );
     assert_eq!(r[0].feature, "todo.bats");
+}
+
+#[test]
+fn swift_events_jsonl_all_green() {
+    // spikes/s1-swift-codegen/ev0.jsonl — the S1 spike run, all passing,
+    // including the parameterized outline (3 Examples rows, one function).
+    let r = parse_swift_events_jsonl(&fixture("swift-ev0.jsonl")).expect("fixture must normalize");
+    assert_eq!(
+        triple(&r),
+        vec![
+            ("Adding a todo shows it in the list", Status::Passed),
+            ("Completing a todo moves it to done", Status::Passed),
+            (
+                "Rejecting an invalid quantity keeps the cart unchanged",
+                Status::Passed
+            ),
+        ]
+    );
+    assert!(r.iter().all(|x| x.feature == "Todo management"), "{r:?}");
+    assert!(r.iter().all(|x| x.failure.is_none()));
+    assert!(r.iter().all(|x| x.duration_ms.is_some()));
+}
+
+#[test]
+fn swift_events_jsonl_with_real_failure() {
+    // spikes/s1-swift-codegen/evfail.jsonl — deliberate assertion failure.
+    let r =
+        parse_swift_events_jsonl(&fixture("swift-evfail.jsonl")).expect("fixture must normalize");
+    assert_eq!(
+        triple(&r),
+        vec![
+            ("Adding a todo shows it in the list", Status::Failed),
+            ("Completing a todo moves it to done", Status::Passed),
+            (
+                "Rejecting an invalid quantity keeps the cart unchanged",
+                Status::Passed
+            ),
+        ]
+    );
+    assert!(
+        r[0].failure
+            .as_deref()
+            .expect("failure message")
+            .contains("expected list to contain Buy oat milk")
+    );
+}
+
+#[test]
+fn swift_events_jsonl_stub_markers_are_undefined() {
+    // A real run of craftsman-generated code with every step left as its
+    // template stub: all issues carry the "step not implemented:" marker →
+    // UNDEFINED, not Failed (message-prefix dialect). The parameterized
+    // scenario's failure detail names the failing rows.
+    let r = parse_swift_events_jsonl(&fixture("swift-ev-undefined.jsonl"))
+        .expect("fixture must normalize");
+    assert_eq!(
+        triple(&r),
+        vec![
+            ("Adding a todo shows it in the list", Status::Undefined),
+            (
+                "Rejecting an invalid quantity keeps the cart unchanged",
+                Status::Undefined
+            ),
+        ]
+    );
+    let detail = r[1].failure.as_deref().expect("failure detail");
+    assert!(detail.contains("step not implemented: "), "{detail}");
+    assert!(detail.contains(r#"[0, "zero"]"#), "{detail}");
+}
+
+#[test]
+fn swift_xunit_sibling_is_a_coarse_fallback() {
+    // spikes/s1-swift-codegen/rfail-swift-testing.xml — the xunit sibling of
+    // the failing run. Raw-identifier names are recovered; the feature stays
+    // the mangled Target.Suite classname (coarse by design, ADR-001).
+    let r = parse_junit(&fixture("swift-xunit-fail.xml"), JunitDialect::SwiftTesting)
+        .expect("fixture must normalize");
+    assert_eq!(
+        triple(&r),
+        vec![
+            ("Completing a todo moves it to done", Status::Passed),
+            ("Adding a todo shows it in the list", Status::Failed),
+            (
+                "Rejecting an invalid quantity keeps the cart unchanged",
+                Status::Passed
+            ),
+        ]
+    );
+    assert!(
+        r.iter()
+            .all(|x| x.feature == "SpecSpikeTests.TodoManagementFeature")
+    );
 }
 
 #[test]
