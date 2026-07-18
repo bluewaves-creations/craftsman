@@ -88,6 +88,13 @@ finding is routed, none rides on memory:
 
 Neither starts before Batch 12 closes; both need a human-approved delta.
 
+*(Routed 2026-07-19: both niceties → Batch 18, scenarios approved in
+SPEC.delta.md. Finding 13 also graduated to CLI behavior → Batch 19
+(boundary distance printed by spec status and commit — pure visibility,
+per the human's design pick). Trigger: the agent's own workflow-experience
+feedback, harvested and sorted with the human — the first dogfood finding
+sourced from the agent's experience rather than a failing run.)*
+
 ## Phase D1 — Redeploy and re-enter (after Batch 10 tags v0.2.0)
 
 - Install v0.2.0 via `sh install.sh` (release binary path, not cargo); `craftsman setup`;

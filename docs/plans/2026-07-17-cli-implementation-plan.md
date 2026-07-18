@@ -349,3 +349,42 @@ Success: craftsman verify --scenario "A filtered verify run merges into the reco
 *(Boundary close-out 2026-07-18 — success line MET: pin flipped red-first (`filtered_verify_merges_per_scenario_into_the_record`), merge implemented in record.rs with the same-head guard and the module doc updated to record the superseded Batch 9b decision; scenario wired and green; all four orchestration pins green.)*
 
 *(Release close-out 2026-07-19 — v0.5.0 SHIPPED: two CI reds before the tag, both harness truths the runners exposed and the fixes proved (the requires-xcode probe must also require swift ≥ 6.2 — a runnable xcodebuild is not a buildable fixture, 740aea5; ledger fixtures need the git identity in repo config because bare runners have no global identity, cbb5a08); then CI green on the first bump attempt, release workflow green, 11 assets. Third live download-leg proof: installed v0.4.0 → `craftsman update` → 0.5.0, second run refreshed all six skills (the boundary-extraction conventions now ride in the installed copies, closing the open note from the skills commit) and reported up-to-date; doctor 6/6. Full verify under CRAFTSMAN_LIVE=1: 108/108 green — the first complete record with zero unknowns, both live scenarios included.)*
+
+## Batch 18 — Delta mediation (agent-feedback harvest, approved 2026-07-19)
+
+*(Source: the agent's dogfood feedback on the workflow, sorted with the human — the boundary merge of an approved SPEC.delta.md is the one spec write the CLI does not mediate (performed by hand twice), and the spec-harness cost more incidental debugging than the CLI it tests. Scenarios approved in SPEC.delta.md 2026-07-19; they enter SPEC.md as their implementing commits make them green, per the delta pattern.)*
+
+Scenarios:
+- Spec lint checks a delta file without admitting it
+- Spec lint delta rejects a name colliding with the executed spec
+- Spec lint delta without a delta file is an empty selection
+- Merge-delta folds approved scenarios into the spec and removes the delta
+- Merge-delta refuses a delta that fails lint
+- Merge-delta without a delta file is an empty selection
+
+Tasks:
+- Harness consolidation first (refactor-only commits, no behavior change): extract the shared fixture pattern (stable temp dir, scrub-on-entry, repo-config git identity) into a common test module the step files call; record the harness traps in `cli/tests/spec/README.md` (cucumber-expression slash alternation, `--name` regex filter bypass, fixture idempotence, bare-runner identity)
+- `spec lint --delta`: gherkin-parse SPEC.delta.md and check its scenario names against the executed spec — 0 clean · 1 findings · 4 no delta file; never adds to the executed set
+- `spec merge-delta`: refuse on delta-lint findings; otherwise append the delta scenarios to SPEC.md under a dated banner, remove SPEC.delta.md, and never commit — the head stays where it was (single-writer now covers the merge)
+- Wire the six scenarios red-first
+
+Success: craftsman verify exits 0 with all six Batch 18 scenarios green
+
+## Batch 19 — Boundary observability (agent-feedback harvest, approved 2026-07-19)
+
+*(Source: dogfood finding 13 — boundary extraction never fired for five batches because the rule lived in prose; prose rules decay under context pressure, exit codes and printed lines do not. Design approved by the human 2026-07-19: pure visibility, never a threshold, never a block — the boundary stays a human judgment; the machine only makes skipping it impossible to miss. "Ledger commits" are commits carrying a Verified-by trailer.)*
+
+Scenarios:
+- An extract resets the boundary distance to zero
+- Ledger commits after the last extract are counted visibly
+- Commit reports the distance to the last extract
+- Spec status is explicit when no extract has ever run
+
+Tasks:
+- `craftsman extract` records the head it closed at (a receipt in `.craftsman/session/`)
+- `spec status` and `craftsman commit` print "N ledger commits since last extract" on stderr — counting Verified-by commits since the receipt head; "no extract recorded" when no receipt exists
+- Wire the four scenarios red-first
+- Conventions papercuts (docs commit): record the Verified-by-token refusal trap and the delta workflow (lint --delta / merge-delta) in `skills/craftsman-conventions.md` and the spec skill
+- Boundary: fold this batch's scenarios in via a live `spec merge-delta` run — the first mechanical boundary merge; SPEC.delta.md ends the batch gone
+
+Success: craftsman verify exits 0 with all four Batch 19 scenarios green, and SPEC.delta.md was removed by `spec merge-delta`, not by hand
