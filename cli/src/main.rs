@@ -147,6 +147,19 @@ enum SpecCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Generate runner glue from SPEC.md for the code-gen stacks
+    /// (swift → Swift Testing, bash → bats).
+    ///
+    /// The generated runner file is fully rewritten on every run; the step
+    /// stub template is written once and never overwritten, and your real
+    /// step files are never touched. Exit 1 when the spec has lint errors
+    /// (fix them first — run `craftsman spec lint`); exit 4 when no
+    /// configured stack needs code-gen.
+    Gen {
+        /// Emit the written/kept file list as JSON on stdout
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -180,6 +193,7 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::Spec { command } => match command {
             SpecCommand::Status { json } => spec_status(*json),
             SpecCommand::Lint { json } => spec_lint(*json),
+            SpecCommand::Gen { json } => spec_gen(*json),
         },
         Command::Plan { command } => match command {
             PlanCommand::Lint { json } => plan_lint(*json),
@@ -457,6 +471,42 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
     } else {
         EXIT_PASS
     })
+}
+
+fn spec_gen(json: bool) -> anyhow::Result<i32> {
+    use craftsman::codegen::{self, Outcome};
+
+    let cwd = std::env::current_dir().context("cannot determine working directory")?;
+    let (code, files): (i32, Vec<codegen::FileReport>) = match codegen::run(&cwd)? {
+        Outcome::LintErrors { errors } => {
+            eprintln!(
+                "spec gen refused: the spec has {errors} lint error(s) — every one \
+                 breaks code generation; fix them first (run `craftsman spec lint`)"
+            );
+            (EXIT_VERIFICATION_FAILURE, Vec::new())
+        }
+        Outcome::NoCodegenStacks { stacks } => {
+            eprintln!(
+                "spec gen: no code-gen stack in [project] stacks {stacks:?} — \
+                 only \"swift\" and \"bash\" need generated glue (exit 4)"
+            );
+            (EXIT_EMPTY_SELECTION, Vec::new())
+        }
+        Outcome::Generated(files) => {
+            for f in &files {
+                eprintln!("{:>8}  {}", f.action, f.path.display());
+            }
+            (EXIT_PASS, files)
+        }
+    };
+    if json {
+        let doc = serde_json::json!({
+            "generated": code == EXIT_PASS,
+            "files": files,
+        });
+        println!("{doc:#}");
+    }
+    Ok(code)
 }
 
 fn plan_lint(json: bool) -> anyhow::Result<i32> {

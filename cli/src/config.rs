@@ -98,16 +98,19 @@ fn default_plan() -> String {
 
 /// `[verify]` is a table of per-stack tables.
 ///
-/// `[verify.rust]`, `[verify.python]`, `[verify.typescript]` — a clean
-/// break from the Batch 2/3 flat keys, made while nothing external consumed
-/// them (Batch 4). Each stack listed in `[project] stacks` reads its own
-/// section; an absent section means all defaults.
+/// `[verify.rust]`, `[verify.python]`, `[verify.typescript]`,
+/// `[verify.swift]`, `[verify.bash]` — a clean break from the Batch 2/3
+/// flat keys, made while nothing external consumed them (Batch 4; swift and
+/// bash added in Batch 5). Each stack listed in `[project] stacks` reads its
+/// own section; an absent section means all defaults.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Verify {
     pub rust: Option<VerifyStack>,
     pub python: Option<VerifyStack>,
     pub typescript: Option<VerifyStack>,
+    pub swift: Option<VerifyStack>,
+    pub bash: Option<VerifyStack>,
 }
 
 impl Verify {
@@ -119,6 +122,8 @@ impl Verify {
             "rust" => self.rust.as_ref(),
             "python" => self.python.as_ref(),
             "typescript" => self.typescript.as_ref(),
+            "swift" => self.swift.as_ref(),
+            "bash" => self.bash.as_ref(),
             _ => None,
         }
     }
@@ -142,7 +147,20 @@ pub struct VerifyStack {
     /// Directory pytest collects from, relative to the stack `cwd`.
     /// Default: `tests`. Python only.
     pub tests_dir: Option<String>,
-    /// xcodebuild stacks only (Batch 5).
+    /// `SwiftPM` package root, relative to the config root. Default: the
+    /// stack `cwd` (or the root). Swift only.
+    pub package_dir: Option<String>,
+    /// Test-target source directory relative to `package-dir` (its last
+    /// path component is the `SwiftPM` test target name, per convention).
+    /// Default: the single directory under `<package-dir>/Tests/`.
+    /// Swift only.
+    pub swift_tests_dir: Option<String>,
+    /// Directory holding the generated `.bats` file, relative to the stack
+    /// `cwd`. Default: `tests`. Bash only.
+    pub bats_dir: Option<String>,
+    /// xcodebuild variant (swift-apple): presence of `scheme` selects
+    /// `xcodebuild test` over `swift test`. Not yet supported — verify
+    /// errors clearly rather than half-running (Batch 5 honest-undone).
     pub scheme: Option<String>,
     pub destination: Option<String>,
 }
