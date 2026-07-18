@@ -1,15 +1,15 @@
 ---
 name: craftsman-review
 description: >
-  Craftsman review — advisory judgment, never a gate. Gears: quality
-  (architecture, patterns, naming, complexity against the AGENTS.md bar,
-  using gate output as evidence — the default), design (front-end and API
-  taste; defers to Impeccable and Apple's skills when installed). Use for
-  "review this", "critique the architecture", "is this code good", "review
-  the batch". Whether code works is craftsman verify's exit code, never this
-  skill's opinion. Spec questions go to craftsman-spec; fixes to
-  craftsman-fix. Applies only inside a Craftsman project (craftsman.toml
-  present); otherwise offer craftsman-init and stop.
+  Craftsman review — advisory judgment, never a gate. Use for "review this",
+  "code review", "feedback on this", "critique this", "is this code good".
+  Gears: quality (architecture, naming, complexity against the AGENTS.md
+  bar; gate output as evidence — the default), design (front-end and API
+  taste; defers to Impeccable and Apple's skills when installed). Whether
+  code works is craftsman verify's exit code, never this skill's opinion.
+  Spec questions: craftsman-spec; fixes: craftsman-fix. Applies only inside
+  a Craftsman project (craftsman.toml present); otherwise offer
+  craftsman-init and stop.
 license: MIT
 compatibility: Requires the craftsman CLI on PATH.
 ---

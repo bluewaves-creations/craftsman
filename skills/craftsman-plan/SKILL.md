@@ -2,14 +2,14 @@
 name: craftsman-plan
 description: >
   Craftsman planning — batches SPEC.md scenarios into a lean PLAN.md the work
-  follows. Gears: batch (group red scenarios into 2–4-scenario batches with
-  mechanical success criteria — the default), revise (replan from what the
-  last batch taught), gap (check remaining batches still cover all remaining
-  red scenarios). Use for "plan the batches", "update the plan", "what's
-  next", "replan". Use the harness's native plan mode for the thinking;
-  PLAN.md is the durable artifact. For execution use craftsman-implement.
-  Applies only inside a Craftsman project (craftsman.toml present); otherwise
-  offer craftsman-init and stop.
+  follows. Use for "plan the batches", "what's next", "what's left", "where
+  were we", "break this down", "update the plan", "replan". Gears: batch
+  (2–4 related scenarios, mechanical success lines — the default), revise
+  (replan from what the last batch taught), gap (do remaining batches cover
+  all red scenarios). Think in the harness's plan mode; PLAN.md is the
+  durable artifact. Execution: craftsman-implement. Applies only inside a
+  Craftsman project (craftsman.toml present); otherwise offer craftsman-init
+  and stop.
 license: MIT
 compatibility: Requires the craftsman CLI on PATH.
 ---

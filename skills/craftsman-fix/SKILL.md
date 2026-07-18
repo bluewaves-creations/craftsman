@@ -1,14 +1,13 @@
 ---
 name: craftsman-fix
 description: >
-  Craftsman bug fixing — diagnose before touching code. Gears: diagnose
-  (reproduce, isolate, hypothesize, report; checks the ledgers for previously
-  rejected approaches — the default and mandatory first), fix (failing
-  root-cause test + minimal fix, one clean commit), improve (separate
-  health-restoring refactor commit, measured). Use for "fix this bug", "why is
-  this failing", "this scenario went red", "regression", "it broke". Never
-  mixes fix and refactor in one commit. Small non-bug changes go to
-  craftsman-implement quick; new behavior to craftsman-spec. Applies only
+  Craftsman bug fixing — diagnose before proposing any fix. Use when tests
+  fail, something crashes, or behavior surprises: "fix this bug", "tests are
+  failing", "it crashes", "why is this failing", "why does X happen",
+  "scenario went red", "regression". Gears: diagnose (reproduce, isolate,
+  report — the mandatory default), fix (root-cause test + minimal fix, one
+  commit), improve (separate refactor commit). Small non-bug changes:
+  craftsman-implement quick; new behavior: craftsman-spec. Applies only
   inside a Craftsman project (craftsman.toml present); otherwise offer
   craftsman-init and stop.
 license: MIT

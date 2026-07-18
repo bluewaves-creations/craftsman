@@ -1,16 +1,15 @@
 ---
 name: craftsman-implement
 description: >
-  Craftsman execution — turns red scenarios green at production grade. Gears:
-  batch (work the current PLAN.md batch: docs first, confirm red, minimal
-  green, refactor — the default), boundary (batch end: all gates, gap check,
-  extract learnings, ledger commit, stop), finish (all green: QA, ADR
-  consolidation, final commit), quick (light path for small scoped changes: no
-  spec ceremony, gates and Verified-by still mandatory). Use for "implement",
-  "next batch", "run the boundary", "quick change", "small tweak". Bugs go to
-  craftsman-fix; new behavior to craftsman-spec first. Applies only inside a
-  Craftsman project (craftsman.toml present); otherwise offer craftsman-init
-  and stop.
+  Craftsman execution — turns red scenarios green at production grade. Use
+  for "implement", "next batch", "continue", "quick change", "small tweak",
+  "run the boundary", and before claiming a batch done. Gears: batch (the
+  current PLAN.md batch — the default), boundary (batch end: gates, gap
+  check, learnings, ledger commit, stop), finish (all green: QA, ADRs, final
+  commit), quick (small scoped changes; gates and Verified-by mandatory).
+  Bugs: craftsman-fix; new behavior: craftsman-spec first. Applies only
+  inside a Craftsman project (craftsman.toml present); otherwise offer
+  craftsman-init and stop.
 license: MIT
 compatibility: Requires the craftsman CLI on PATH and git.
 ---

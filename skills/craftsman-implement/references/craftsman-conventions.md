@@ -2,6 +2,8 @@
 
 Read this once per session, before any Craftsman gear runs. It travels byte-identical in every `craftsman-*` skill; if two copies ever differ, run `craftsman update` and report it. These conventions bind every gear of every skill. The skill you loaded adds gear-specific rules; nothing in a skill may weaken what is written here.
 
+On activation, announce yourself in one line — "Using craftsman-fix (diagnose) — reproducing the failure first." — so the human can catch a wrong routing before work accumulates.
+
 ## The three actors
 
 Every responsibility belongs to exactly one actor.
@@ -77,6 +79,21 @@ Before proposing any architectural approach: read `decisions/index.md`, then `gi
 ## Fan-out discipline
 
 Research runs in isolated subagents that return findings, never transcripts. Fan out only for: research isolation, best-of-N attempts on a genuinely open problem, or independent batches in separate worktrees. Never fan out sequential work, review, or diagnosis. Implementation stays in the main context; compress by extracting to disk (`craftsman extract`), not by spawning.
+
+## Red flags
+
+These thoughts are stop signals. Having one means pause and take the stated action instead.
+
+| Thought | Reality |
+|---|---|
+| "The gate is probably fine to skip this once" | Gates are the methodology. A red gate blocks the boundary — no exceptions the CLI doesn't grant. |
+| "I can see the code is correct without running verify" | Green is an exit code, never a reading. Run `craftsman verify`. |
+| "This quick change doesn't need the commit gate" | quick skips ceremony, never gates. `check-all --changed` + `Verified-by:` always. |
+| "The scenario is basically green" | Basically green is red. Exit code 0 or it isn't done. |
+| "I'll write the root-cause test after the fix" | After the fix it proves nothing. Failing test first. |
+| "This rejected approach will work this time" | The ledger recorded why it failed. Warn the human and confirm before retrying. |
+| "The plan is close enough, no need to revise" | A stale plan compounds. Route to craftsman-plan revise at the boundary. |
+| "I know this API from training" | No source, no code. Fetch via `craftsman docs`. |
 
 ## Never
 

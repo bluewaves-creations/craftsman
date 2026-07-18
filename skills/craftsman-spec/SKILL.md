@@ -1,15 +1,15 @@
 ---
 name: craftsman-spec
 description: >
-  Craftsman spec — the librarian turns official documentation into Gherkin
-  SPEC.md scenarios the human approves; the spec is the test suite. Gears:
-  draft (new scenarios from docs + example mapping — the default), delta
-  (ADDED/MODIFIED/REMOVED change specs against current truth), recover (pin
-  existing behavior via characterization tests; only verified scenarios enter
-  the spec). Use for "draft the spec", "spec this feature", "write scenarios",
-  "update the spec". For batching use craftsman-plan; for building use
-  craftsman-implement. Applies only inside a Craftsman project (craftsman.toml
-  present); otherwise offer craftsman-init and stop.
+  Craftsman spec — new behavior starts here: official docs become Gherkin
+  SPEC.md scenarios the human approves. Use for "add a feature", "build X",
+  "I want it to…", "what should this do", "draft the spec", "spec this
+  feature", "the requirement changed". Gears: draft (docs + example mapping
+  — the default), delta (ADDED/MODIFIED/REMOVED change specs), recover
+  (characterization tests pin existing behavior). Batching: craftsman-plan;
+  building: craftsman-implement; bugs: craftsman-fix. Applies only inside a
+  Craftsman project (craftsman.toml present); otherwise offer craftsman-init
+  and stop.
 license: MIT
 compatibility: Requires the craftsman CLI on PATH.
 ---
