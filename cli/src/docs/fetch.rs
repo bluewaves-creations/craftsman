@@ -61,6 +61,12 @@ pub fn fetch(url: &str, dest: &Path, headers: &[String]) -> Result<FetchStatus, 
         .trim()
         .parse()
         .unwrap_or(0);
+    // file:// has no HTTP status (curl reports 000): a successful copy is
+    // Ok. Local sources make the docs pipeline testable hermetically —
+    // same precedent as the installer's CRAFTSMAN_DOWNLOAD_URL.
+    if url.starts_with("file://") && output.status.success() {
+        return Ok(FetchStatus::Ok);
+    }
     if !output.status.success() && code == 0 {
         return Err(DocsError::CurlFailed {
             url: url.to_owned(),

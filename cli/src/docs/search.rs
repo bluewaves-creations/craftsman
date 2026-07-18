@@ -206,6 +206,17 @@ fn fetch_inventory_page(
     let dest = lib
         .join("pages")
         .join(crate::docs::fetch::page_slug(page_url));
+    // "Cached for next time" must be true: the object name resolves to
+    // the same slug deterministically, so a previous on-demand fetch is
+    // served offline here (the pin for GAP-R08 caught this lookup never
+    // consulting the cache — every get refetched).
+    if dest.is_file() {
+        let text = std::fs::read_to_string(&dest).map_err(|source| DocsError::Io {
+            path: dest.clone(),
+            source,
+        })?;
+        return Ok((text, dest));
+    }
     eprintln!(
         "docs get: {} is not cached — fetching {page_url} on demand \
          (the objects-inv network exception; cached for next time)",
