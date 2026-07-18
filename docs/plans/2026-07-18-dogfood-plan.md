@@ -61,6 +61,22 @@ finding is routed, none rides on memory:
     now lives in the conventions (read every session, binds every gear):
     every batch completion extracts and explicitly suggests compaction,
     unconditionally; boundary.md and finish.md updated to match.
+14. **The pre-discipline scaffold was defect-dense — and the system found
+    every flaw mechanically** (Batch 12 close-out, named by the human
+    2026-07-18) — the CLI's early code predates the full Craftsman
+    discipline (scaffolded in the Superpowers-era phase). The recover
+    retro-spec found 9 behaviors with no pin at all; closing them, the
+    pinning attempts exposed three live defects (`lint --changed` silently
+    dropping cargo fmt findings; `file://` docs sources rejected; the
+    objects-inv on-demand cache written but never consulted) — and the four
+    Batch 13 verdict-path fixes (bunx auto-install, unborn HEAD, dead ts
+    spec, non-idempotent installer) came from the same inheritance. Bugs
+    and gaps in inherited-without-verification code are precisely the
+    failure Craftsman exists to prevent; the vindication is that the
+    system's own instruments (recover retro-spec, characterization pins,
+    gap register) surfaced them mechanically, not by luck. → Standing rule
+    below: pre-discipline code is presumed defective until pinned; the
+    hardening backlog runs to empty during dogfood.
 
 ## Harvested CLI niceties (route through craftsman-spec before any code)
 
@@ -138,3 +154,10 @@ sibling or vendored tree). The exercise, whenever that project appears:
 - Findings are Learned:/Rejected: trailers first, program-doc updates second.
 - A finding that implies CLI behavior change → craftsman-spec, never a quick patch.
 - This document is agent-owned like PLAN.md; revised when a phase completes.
+- **Pre-discipline code is presumed defective, not presumed working.** Any
+  surface without a citing scenario or characterization pin inherits Batch
+  12's base rate — roughly one in three unpinned behaviors hid a live
+  defect. The dogfood period does not end while the hardening backlog is
+  non-empty: SPEC.recover.md wiring (Batch 11), the approved delta
+  promises, the GAP-R10 decision, and any gap register entry that appears
+  later. New code never joins the backlog: it is born spec-first.
