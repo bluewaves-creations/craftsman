@@ -36,5 +36,6 @@ Design authority: `docs/design/2026-07-17-cli-surface-design.md` and `2026-07-17
 | specspike (docc dogfood) | docc | spikes/s1-swift-codegen | latest | swift build |
 | pydantic (objects-inv dogfood) | objects-inv | https://docs.pydantic.dev/latest/objects.inv | latest | — |
 | zod (dts dogfood) | dts | cli/tests/fixtures/ts-todo node_modules | 4.3.5 (bun.lock) | bun test |
+| axoupdater | docsrs-json | https://docs.rs/crate/axoupdater | 0.10.0 | cargo check |
 
 Sources are synced into `.craftsman/docs/` via `craftsman docs add`/`sync`; query offline with `craftsman docs search <query> [--lib <name>]`. Unlisted library → STOP and ask.
