@@ -140,6 +140,18 @@ const fn tokens(style: OsArch) -> (&'static str, &'static str) {
                 "amd64"
             },
         ),
+        OsArch::GoX64 => (
+            if cfg!(target_os = "macos") {
+                "darwin"
+            } else {
+                "linux"
+            },
+            if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "x64"
+            },
+        ),
         OsArch::Uname => (
             if cfg!(target_os = "macos") {
                 "darwin"

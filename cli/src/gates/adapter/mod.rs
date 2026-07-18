@@ -54,8 +54,14 @@ pub enum Archive {
 /// Per-project os/arch token vocabulary used in asset names.
 #[derive(Debug, Clone, Copy)]
 pub enum OsArch {
-    /// `darwin`/`linux` + `arm64`/`amd64` (Go releases: gitleaks, osv).
+    /// `darwin`/`linux` + `arm64`/`amd64` (osv-scanner; asset names verified
+    /// against the v2.4.0 release listing).
     Go,
+    /// `darwin`/`linux` + `arm64`/`x64` (gitleaks; its linux x86-64 asset is
+    /// `_linux_x64.tar.gz` — verified against the v8.24.0 release listing
+    /// after CI run 29645438952 404'd on the assumed `amd64` token, which
+    /// arm64 macs never exercise).
+    GoX64,
     /// `darwin`/`linux` + `aarch64`/`x86_64` (shellcheck).
     Uname,
     /// `macos`/`linux` + `arm64`/`amd64` (k6 releases).
@@ -240,7 +246,7 @@ pub const TOOLS: &[GateTool] = &[
             asset: "gitleaks_{version}_{os}_{arch}.tar.gz",
             archive: Archive::TarGz,
             binary: "gitleaks",
-            os_arch: OsArch::Go,
+            os_arch: OsArch::GoX64,
             path_fallback: false,
         },
         base_args: &["git", "--no-banner"],
