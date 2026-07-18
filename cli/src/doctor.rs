@@ -45,14 +45,19 @@ impl Check {
     }
 }
 
+/// Error writing the disposable fixture project.
+#[derive(Debug, Error)]
+#[error("cannot write fixture file {path}: {source}")]
+pub struct ScaffoldError {
+    path: PathBuf,
+    #[source]
+    source: std::io::Error,
+}
+
 #[derive(Debug, Error)]
 enum RoundTripError {
-    #[error("cannot write fixture file {path}: {source}")]
-    Write {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
+    #[error(transparent)]
+    Scaffold(#[from] ScaffoldError),
     #[error("verify errored on the fixture: {0}")]
     Verify(#[from] verify::VerifyError),
     #[error("expected the {phase} fixture to be {expected}, observed {observed}")]
@@ -251,11 +256,12 @@ fn check_round_trip(checks: &mut Vec<Check>) {
     }
 }
 
+/// The doctor fixture's spec: one scenario, two steps, both implemented.
+const DOCTOR_SPEC: &str = "Feature: Doctor fixture\n\n  Scenario: The loop closes\n    Given a truth\n    Then it holds\n";
+
 fn round_trip() -> Result<String, RoundTripError> {
     let dir = std::env::temp_dir().join("craftsman-doctor-fixture");
-    write_fixture(&dir)?;
-
-    write_truth(&dir, false)?;
+    scaffold_rust_fixture(&dir, DOCTOR_SPEC, false)?;
     eprintln!(
         "doctor: round trip — red phase in {} (first run compiles the fixture; may take minutes)",
         dir.display()
@@ -291,18 +297,24 @@ fn round_trip() -> Result<String, RoundTripError> {
     ))
 }
 
-/// The minimal rust cucumber fixture: one feature, one scenario, two steps.
-/// The `Then` step asserts `fixture::HOLDS`, flipped by [`write_truth`] so
-/// only `src/lib.rs` recompiles between the red and green runs.
-fn write_fixture(dir: &Path) -> Result<(), RoundTripError> {
+/// Scaffold the minimal disposable rust cucumber fixture project — shared
+/// by doctor's round trip and the acceptance harness (`cli/tests/spec.rs`).
+///
+/// `spec` is the fixture's SPEC.md; its harness implements `Given a truth`
+/// and `Then it holds` (any other step is undefined by construction). The
+/// `Then` step asserts `fixture::HOLDS = <holds>`, so flipping `holds`
+/// only recompiles `src/lib.rs` and the cached `target/` is reused across
+/// runs. Writes are skipped when content is unchanged, keeping mtimes (and
+/// cargo's fingerprints) stable.
+///
+/// # Errors
+/// [`ScaffoldError`] when a fixture file cannot be written.
+pub fn scaffold_rust_fixture(dir: &Path, spec: &str, holds: bool) -> Result<(), ScaffoldError> {
     write_if_changed(
         &dir.join("craftsman.toml"),
         "[project]\nname = \"doctor-fixture\"\nstacks = [\"rust\"]\n\n[gates]\nverify = \"strict\"\n",
     )?;
-    write_if_changed(
-        &dir.join("SPEC.md"),
-        "Feature: Doctor fixture\n\n  Scenario: The loop closes\n    Given a truth\n    Then it holds\n",
-    )?;
+    write_if_changed(&dir.join("SPEC.md"), spec)?;
     write_if_changed(
         &dir.join("Cargo.toml"),
         r#"[package]
@@ -349,10 +361,11 @@ async fn main() {
         .await;
 }
 "#,
-    )
+    )?;
+    write_truth(dir, holds)
 }
 
-fn write_truth(dir: &Path, holds: bool) -> Result<(), RoundTripError> {
+fn write_truth(dir: &Path, holds: bool) -> Result<(), ScaffoldError> {
     write_if_changed(
         &dir.join("src/lib.rs"),
         &format!("pub const HOLDS: bool = {holds};\n"),
@@ -361,17 +374,17 @@ fn write_truth(dir: &Path, holds: bool) -> Result<(), RoundTripError> {
 
 /// Write only when content differs, keeping mtimes stable so cargo's
 /// fingerprinting reuses the cached build.
-fn write_if_changed(path: &Path, content: &str) -> Result<(), RoundTripError> {
+fn write_if_changed(path: &Path, content: &str) -> Result<(), ScaffoldError> {
     if std::fs::read_to_string(path).is_ok_and(|existing| existing == content) {
         return Ok(());
     }
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|source| RoundTripError::Write {
+        std::fs::create_dir_all(parent).map_err(|source| ScaffoldError {
             path: parent.to_path_buf(),
             source,
         })?;
     }
-    std::fs::write(path, content).map_err(|source| RoundTripError::Write {
+    std::fs::write(path, content).map_err(|source| ScaffoldError {
         path: path.to_path_buf(),
         source,
     })

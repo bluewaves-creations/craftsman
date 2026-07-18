@@ -47,6 +47,19 @@ Feature: Craftsman CLI core
     Then the exit code is 3
     And the output contains "cobol"
 
+  Scenario: Verify reports an undefined scenario as a failure
+    Given a scaffolded rust project whose spec has an unimplemented step
+    When I run craftsman with "verify"
+    Then the exit code is 1
+    And the output contains "1 undefined"
+
+  Scenario: Impact falls back to running everything when no map exists
+    Given a scaffolded rust project that verifies green
+    When I run craftsman with "verify --impact"
+    Then the exit code is 0
+    And the output contains "no impact map"
+    And the output contains "The loop closes"
+
   Scenario: Verify refuses to run without a craftsman config
     Given an empty project directory
     When I run craftsman with "verify"

@@ -26,12 +26,18 @@ const MINIMAL_CONFIG: &str = "[project]\nname = \"fixture\"\nstacks = [\"rust\"]
 #[derive(Debug, Default, cucumber::World)]
 pub struct CliWorld {
     dir: Option<tempfile::TempDir>,
+    /// A cached scaffolded fixture at a stable path (its compiled `target/`
+    /// survives across runs, like doctor's) instead of a throwaway tempdir.
+    fixed_dir: Option<PathBuf>,
     output: Option<Output>,
 }
 
 impl CliWorld {
     /// The fixture project directory, created on first use.
     fn project_dir(&mut self) -> PathBuf {
+        if let Some(fixed) = &self.fixed_dir {
+            return fixed.clone();
+        }
         if self.dir.is_none() {
             self.dir = Some(tempfile::tempdir().expect("create fixture tempdir"));
         }
@@ -121,6 +127,37 @@ fn plan_assigns_batch(w: &mut CliWorld, batch: u32, first: String, second: Strin
         "PLAN.md",
         &format!("# Plan\n\n## Batch {batch}\n\nScenarios:\n- {first}\n- {second}\n"),
     );
+}
+
+/// The doctor-fixture spec, green: both steps are implemented.
+const GREEN_FIXTURE_SPEC: &str = "Feature: Scaffold fixture\n\n  Scenario: The loop closes\n    Given a truth\n    Then it holds\n";
+
+/// Scaffold a cached rust cucumber fixture (doctor's mechanism) at a
+/// stable temp path — each caller gets its own directory so concurrently
+/// running scenarios never share a fixture.
+fn scaffold_fixture(w: &mut CliWorld, dir_name: &str, spec: &str) {
+    let dir = std::env::temp_dir().join(dir_name);
+    craftsman::doctor::scaffold_rust_fixture(&dir, spec, true)
+        .unwrap_or_else(|e| panic!("scaffold {dir_name}: {e}"));
+    // A fresh fixture state: no impact map or other cached CLI state.
+    let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
+    w.fixed_dir = Some(dir);
+}
+
+#[given("a scaffolded rust project that verifies green")]
+fn scaffolded_green_project(w: &mut CliWorld) {
+    scaffold_fixture(w, "craftsman-spec-impact-fixture", GREEN_FIXTURE_SPEC);
+}
+
+#[given("a scaffolded rust project whose spec has an unimplemented step")]
+fn scaffolded_undefined_project(w: &mut CliWorld) {
+    // The harness implements only "a truth" / "it holds": the extra step
+    // has no step definition, which cucumber-rs reports as an undefined
+    // step (ADR-003: step-level skipped in output-json → Undefined).
+    let spec = &format!(
+        "{GREEN_FIXTURE_SPEC}\n  Scenario: Something not yet written\n    Given an unwritten step\n"
+    );
+    scaffold_fixture(w, "craftsman-spec-undefined-fixture", spec);
 }
 
 #[given("an empty project directory")]

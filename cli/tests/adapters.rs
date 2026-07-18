@@ -123,6 +123,32 @@ fn cucumber_js_scenario_filter_maps_to_name() {
     assert_eq!(all, vec!["Add an item to the list"]);
 }
 
+/// The impact-map coverage capture, end to end on the python fixture: a
+/// full verify run must leave a coverage-kind map whose entries point at
+/// the real executed files (pytest-cov contexts → scenario names).
+#[test]
+fn python_full_verify_writes_a_coverage_impact_map() {
+    let _guard = PYTHON_TODO.lock().expect("fixture lock");
+    let dir = fixture_project("python-todo");
+    let map_path = dir.join(".craftsman/cache/impact-map.json");
+    let _ = std::fs::remove_file(&map_path);
+
+    verify::run(&dir, &Selection::All).expect("python fixture verify runs");
+
+    let text = std::fs::read_to_string(&map_path).expect("full run writes the impact map");
+    let doc: serde_json::Value = serde_json::from_str(&text).expect("map is valid JSON");
+    assert_eq!(doc["version"], 1, "{doc:#}");
+    let python = &doc["stacks"]["python"];
+    assert_eq!(python["kind"], "coverage", "{doc:#}");
+    let files = python["scenarios"]["Add an item to the list"]
+        .as_array()
+        .expect("covered files for the passing scenario");
+    assert!(
+        files.iter().any(|f| f == "tests/test_todo.py"),
+        "coverage must name the executed test module: {files:?}"
+    );
+}
+
 #[test]
 fn pytest_bdd_scenario_filter_maps_to_k() {
     let _guard = PYTHON_TODO.lock().expect("fixture lock");

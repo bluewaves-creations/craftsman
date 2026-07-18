@@ -57,6 +57,18 @@ enum Command {
         /// Run a single scenario by exact name
         #[arg(long)]
         scenario: Option<String>,
+        /// Run only scenarios the diff against REF (default HEAD) can
+        /// affect, per the coverage map written by full verify runs.
+        /// Falls back to running everything — loudly — when the map is
+        /// missing or git cannot diff.
+        #[arg(
+            long,
+            value_name = "REF",
+            num_args = 0..=1,
+            default_missing_value = "HEAD",
+            conflicts_with_all = ["batch", "scenario"]
+        )]
+        impact: Option<String>,
         /// Emit the normalized results as JSON on stdout
         #[arg(long)]
         json: bool,
@@ -175,8 +187,9 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::Verify {
             batch,
             scenario,
+            impact,
             json,
-        } => verify_cmd(*batch, scenario.as_deref(), *json),
+        } => verify_cmd(*batch, scenario.as_deref(), impact.as_deref(), *json),
         Command::Commit {
             commit_type,
             scope,
@@ -278,11 +291,17 @@ fn commit_cmd(request: &CommitRequest, json: bool) -> anyhow::Result<i32> {
     }
 }
 
-fn verify_cmd(batch: Option<u32>, scenario: Option<&str>, json: bool) -> anyhow::Result<i32> {
-    let selection = match (batch, scenario) {
-        (Some(n), _) => Selection::Batch(n),
-        (None, Some(name)) => Selection::Scenario(name.to_owned()),
-        (None, None) => Selection::All,
+fn verify_cmd(
+    batch: Option<u32>,
+    scenario: Option<&str>,
+    impact: Option<&str>,
+    json: bool,
+) -> anyhow::Result<i32> {
+    let selection = match (batch, scenario, impact) {
+        (_, _, Some(reference)) => Selection::Impact(reference.to_owned()),
+        (Some(n), _, None) => Selection::Batch(n),
+        (None, Some(name), None) => Selection::Scenario(name.to_owned()),
+        (None, None, None) => Selection::All,
     };
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let report = verify::run(&cwd, &selection)?;
