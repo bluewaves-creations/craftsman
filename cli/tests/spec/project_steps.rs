@@ -204,27 +204,7 @@ fn scaffold_gate_fixture(
     let _ = std::fs::remove_dir_all(dir.join(".craftsman"));
     let _ = std::fs::remove_dir_all(dir.join(".git"));
     if with_git {
-        for args in [
-            &["init", "--quiet"][..],
-            &["add", "-A"][..],
-            &[
-                "-c",
-                "user.name=fixture",
-                "-c",
-                "user.email=fixture@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "init",
-            ][..],
-        ] {
-            let status = Command::new("git")
-                .args(args)
-                .current_dir(&dir)
-                .status()
-                .expect("spawn git");
-            assert!(status.success(), "git {args:?} failed in {}", dir.display());
-        }
+        crate::repo_steps::git_init_commit_all(&dir);
     }
     w.fixed_dir = Some(dir);
 }

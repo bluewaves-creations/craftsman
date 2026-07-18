@@ -41,6 +41,27 @@ fn git_init_add(dir: &std::path::Path) {
     }
 }
 
+/// Fresh single-commit repository: init, stage everything, commit with the
+/// fixture identity — for fixtures that need a resolvable `HEAD`.
+pub fn git_init_commit_all(dir: &std::path::Path) {
+    git_init_add(dir);
+    let status = Command::new("git")
+        .args([
+            "-c",
+            "user.name=fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "init",
+        ])
+        .current_dir(dir)
+        .status()
+        .expect("spawn git commit");
+    assert!(status.success(), "git commit failed in {}", dir.display());
+}
+
 #[given("a craftsman project with an arch deny rule and a violating import")]
 fn arch_violation_fixture(w: &mut CliWorld) {
     w.write(

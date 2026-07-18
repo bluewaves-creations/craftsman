@@ -17,9 +17,11 @@
 )]
 
 mod adopt_steps;
+mod engine_steps;
 mod import_steps;
 mod project_steps;
 mod repo_steps;
+mod setup_steps;
 mod update_steps;
 
 use std::path::PathBuf;

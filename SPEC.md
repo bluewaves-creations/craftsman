@@ -405,3 +405,70 @@ Feature: Craftsman CLI core
     When I run craftsman with "adr index"
     Then the exit code is 0
     And the regenerated index lists exactly 1 decision
+
+  Scenario: A second setup run reports every skill up to date
+    Given a sandboxed home directory where craftsman setup has already run
+    When I run craftsman setup against the sandboxed home
+    Then the exit code is 0
+    And every canonical skill row reports "up-to-date"
+
+  Scenario: Setup leaves a hand-modified skill tree in place
+    Given a sandboxed home directory where a canonical skill tree holds an extra hand-written file
+    When I run craftsman setup against the sandboxed home
+    Then the exit code is 0
+    And the modified skill row reports "left"
+    And the hand-written file still exists
+
+  Scenario: Setup with force replaces a modified skill tree and still lists it
+    Given a sandboxed home directory where a canonical skill tree holds an extra hand-written file
+    When I run craftsman setup with force against the sandboxed home
+    Then the exit code is 0
+    And the modified skill row reports "replaced"
+    And the hand-written file no longer exists
+
+  Scenario: Setup remove keeps modified trees and removes attributable ones
+    Given a sandboxed home directory where one installed skill tree was hand-modified
+    When I run craftsman setup remove against the sandboxed home
+    Then the exit code is 0
+    And the modified skill tree still exists
+    And the unmodified skill trees and their agent links are removed
+
+  Scenario: Spec status warns when the repository head moved after verify
+    Given a craftsman project with a recorded green verify run
+    And a commit has moved the repository head since that run
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "may be stale"
+
+  Scenario: Spec lint warns about regex-hostile scenario names without failing
+    Given a craftsman project whose spec has a scenario named "Handles the (rare) case"
+    When I run craftsman with "spec lint"
+    Then the exit code is 0
+    And the output contains a warning about the scenario name
+
+  Scenario: Spec gen without a code-gen stack reports an empty selection
+    Given a craftsman project configured with only the stack "rust"
+    When I run craftsman with "spec gen"
+    Then the exit code is 4
+    And the output contains "swift"
+    And the output contains "bash"
+
+  Scenario: The a11y stub is written once and kept after hand edits
+    Given a swift-stack craftsman project where the a11y stub was generated and then hand-edited
+    When the a11y stub generation runs again
+    Then the stub file reports "kept"
+    And the hand edit is preserved
+
+  Scenario: Plan lint rejects a scenario assigned to two batches
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And its plan assigns the scenario "First behavior" to batch 1 and to batch 2
+    When I run craftsman with "plan lint"
+    Then the exit code is 1
+    And the output contains "First behavior"
+
+  Scenario: Plan lint warns about spec scenarios no batch covers
+    Given a craftsman project whose spec has scenarios "First behavior" and "Second behavior"
+    And its plan assigns batch 1 only the scenario "First behavior"
+    When I run craftsman with "plan lint"
+    Then the exit code is 0
+    And the output warns about "Second behavior"
