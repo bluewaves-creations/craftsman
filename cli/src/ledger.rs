@@ -5,10 +5,9 @@
 //! here and nowhere else — there is no flag or config to set it, which is
 //! what makes it unforgeable (design decision #6: enforcement without hooks).
 //!
-//! Gates in this batch: `verify` (in-process, when `[gates] verify` is
-//! enabled) plus `cargo fmt --check` and `cargo clippy --all-targets --
-//! -D warnings` when the staged files touch a rust stack root. Batch 6
-//! replaces the hard-coded fmt/clippy pair with declarative gate adapters.
+//! The gate set is whatever `craftsman check-all --changed` runs (Batch 6a
+//! took over from the Batch 3 hard-coded fmt/clippy pair): every gate
+//! enabled in `[gates]`, honoring modes and the gate cache.
 //!
 //! Co-authorship: the optional `[ledger] co-author` key in craftsman.toml
 //! supplies a `Co-Authored-By:` trailer — committed config rather than an
@@ -22,8 +21,9 @@ use std::process::Command;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::config::{Config, ConfigError, GateMode};
-use crate::verify::{self, Outcome, Selection, VerifyError};
+use crate::config::{Config, ConfigError};
+use crate::gates::GateError;
+use crate::gates::check_all::{self, GateVerdict};
 
 /// Ledger commit types per `skills/craftsman-conventions.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -73,7 +73,7 @@ pub enum LedgerError {
     #[error(transparent)]
     Config(#[from] ConfigError),
     #[error(transparent)]
-    Verify(#[from] VerifyError),
+    Gate(#[from] GateError),
     #[error(
         "nothing staged — `craftsman commit` commits exactly what is staged \
          and stages nothing itself; run `git add` first"
@@ -97,19 +97,12 @@ pub enum LedgerError {
         code: String,
         output: String,
     },
-    #[error("failed to run `{tool}` in {dir}")]
-    ToolSpawn {
-        tool: String,
-        dir: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
 }
 
 /// One gate's verdict within a commit attempt.
 #[derive(Debug, Serialize)]
 pub struct GateRun {
-    pub gate: &'static str,
+    pub gate: String,
     pub passed: bool,
     pub detail: String,
 }
@@ -145,56 +138,28 @@ pub fn commit(cwd: &Path, request: &CommitRequest) -> Result<CommitReport, Ledge
     }
 
     let subject = subject_line(request);
-    let mut gates: Vec<GateRun> = Vec::new();
 
-    // Cheap tool gates first, THE gate (verify) last: fail fast.
-    if let Some(project_dir) = rust_lint_dir(&config, &root, &staged) {
-        for (gate, args) in [
-            ("fmt", &["fmt", "--check"][..]),
-            (
-                "clippy",
-                &["clippy", "--all-targets", "--", "-D", "warnings"][..],
-            ),
-        ] {
-            let run = cargo_gate(gate, args, &project_dir)?;
-            let passed = run.passed;
-            gates.push(run);
-            if !passed {
-                return Ok(CommitReport {
-                    committed: false,
-                    sha: None,
-                    subject,
-                    gates,
-                });
-            }
-        }
-    }
-
-    if config.gates.verify == Some(GateMode::Strict) {
-        eprintln!("gate verify: running the spec…");
-        let report = verify::run(&root, &Selection::All)?;
-        let passed = report.outcome == Outcome::Passed;
-        let detail = match report.outcome {
-            Outcome::Passed => format!("{} scenarios green", report.counts.passed),
-            Outcome::Failed => format!(
-                "{} failed, {} undefined, {} ambiguous",
-                report.counts.failed, report.counts.undefined, report.counts.ambiguous
-            ),
-            Outcome::EmptySelection => "selection matched no scenarios".to_owned(),
-        };
-        gates.push(GateRun {
-            gate: "verify",
-            passed,
-            detail,
+    // The configured gate set, exactly as `craftsman check-all --changed`
+    // runs it (modes, baselines, and the gate cache included).
+    eprintln!("commit gate: craftsman check-all --changed …");
+    let report = check_all::run(&root, &config, true)?;
+    let gates: Vec<GateRun> = report
+        .gates
+        .iter()
+        .filter(|g| g.verdict != GateVerdict::Off)
+        .map(|g| GateRun {
+            gate: g.gate.to_owned(),
+            passed: g.verdict != GateVerdict::Red,
+            detail: g.detail.clone(),
+        })
+        .collect();
+    if !report.passed() {
+        return Ok(CommitReport {
+            committed: false,
+            sha: None,
+            subject,
+            gates,
         });
-        if !passed {
-            return Ok(CommitReport {
-                committed: false,
-                sha: None,
-                subject,
-                gates,
-            });
-        }
     }
 
     let message = build_message(
@@ -241,59 +206,6 @@ fn staged_files(root: &Path) -> Result<Vec<String>, LedgerError> {
         .lines()
         .map(str::to_owned)
         .collect())
-}
-
-/// The rust project directory to run fmt/clippy in, when the project has a
-/// rust stack and any staged path lies under its root (`[verify.rust] cwd`,
-/// or the repo root when unset — then every staged file counts).
-fn rust_lint_dir(config: &Config, root: &Path, staged: &[String]) -> Option<PathBuf> {
-    if !config.project.stacks.iter().any(|s| s == "rust") {
-        return None;
-    }
-    config
-        .verify
-        .stack("rust")
-        .and_then(|s| s.cwd.as_ref())
-        .map_or_else(
-            || Some(root.to_path_buf()),
-            |cwd| {
-                let prefix = format!("{}/", cwd.trim_end_matches('/'));
-                staged
-                    .iter()
-                    .any(|p| p.starts_with(&prefix))
-                    .then(|| root.join(cwd))
-            },
-        )
-}
-
-/// Run one cargo tool gate, capturing its output as the failure detail.
-fn cargo_gate(gate: &'static str, args: &[&str], dir: &Path) -> Result<GateRun, LedgerError> {
-    eprintln!("gate {gate}: cargo {}…", args.join(" "));
-    let output = Command::new("cargo")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .map_err(|source| LedgerError::ToolSpawn {
-            tool: format!("cargo {}", args.join(" ")),
-            dir: dir.to_path_buf(),
-            source,
-        })?;
-    let passed = output.status.success();
-    let detail = if passed {
-        "clean".to_owned()
-    } else {
-        let combined = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        tail(&combined, 30)
-    };
-    Ok(GateRun {
-        gate,
-        passed,
-        detail,
-    })
 }
 
 fn subject_line(request: &CommitRequest) -> String {
@@ -346,19 +258,15 @@ fn build_message(
     message
 }
 
-/// `craftsman verify (N scenarios green) + fmt + clippy` from the gates
+/// `craftsman check-all --changed (verify: …; lint: …)` from the gates
 /// that actually ran green; `None` when no gate ran (nothing to attest).
 fn verified_by(gates: &[GateRun]) -> Option<String> {
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(v) = gates.iter().find(|g| g.gate == "verify" && g.passed) {
-        parts.push(format!("craftsman verify ({})", v.detail));
-    }
-    for tool in ["fmt", "clippy"] {
-        if gates.iter().any(|g| g.gate == tool && g.passed) {
-            parts.push(tool.to_owned());
-        }
-    }
-    (!parts.is_empty()).then(|| parts.join(" + "))
+    let parts: Vec<String> = gates
+        .iter()
+        .filter(|g| g.passed)
+        .map(|g| format!("{}: {}", g.gate, g.detail))
+        .collect();
+    (!parts.is_empty()).then(|| format!("craftsman check-all --changed ({})", parts.join("; ")))
 }
 
 /// Run git in `dir`, returning stdout; any non-zero exit is an error.
@@ -389,12 +297,6 @@ fn git(dir: &Path, args: &[&str]) -> Result<Vec<u8>, LedgerError> {
     Ok(output.stdout)
 }
 
-fn tail(text: &str, lines: usize) -> String {
-    let all: Vec<&str> = text.lines().collect();
-    let start = all.len().saturating_sub(lines);
-    all[start..].join("\n")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,19 +318,14 @@ mod tests {
     fn green_gates() -> Vec<GateRun> {
         vec![
             GateRun {
-                gate: "fmt",
-                passed: true,
-                detail: "clean".to_owned(),
-            },
-            GateRun {
-                gate: "clippy",
-                passed: true,
-                detail: "clean".to_owned(),
-            },
-            GateRun {
-                gate: "verify",
+                gate: "verify".to_owned(),
                 passed: true,
                 detail: "12 scenarios green".to_owned(),
+            },
+            GateRun {
+                gate: "lint".to_owned(),
+                passed: true,
+                detail: "clean (2 tool(s))".to_owned(),
             },
         ]
     }
@@ -450,7 +347,8 @@ mod tests {
                         Scenarios: Commit refuses when nothing is staged\n\
                         Learned: Gates before commit, always.\n\
                         Ref: SPEC.md\n\
-                        Verified-by: craftsman verify (12 scenarios green) + fmt + clippy\n\
+                        Verified-by: craftsman check-all --changed (verify: 12 scenarios green; \
+                        lint: clean (2 tool(s)))\n\
                         Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n";
         assert_eq!(msg, expected);
     }
@@ -458,13 +356,13 @@ mod tests {
     #[test]
     fn verified_by_lists_only_gates_that_ran() {
         let only_verify = vec![GateRun {
-            gate: "verify",
+            gate: "verify".to_owned(),
             passed: true,
             detail: "3 scenarios green".to_owned(),
         }];
         assert_eq!(
             verified_by(&only_verify).as_deref(),
-            Some("craftsman verify (3 scenarios green)")
+            Some("craftsman check-all --changed (verify: 3 scenarios green)")
         );
         assert_eq!(verified_by(&[]), None);
     }
@@ -484,29 +382,5 @@ mod tests {
         req.scope = None;
         req.commit_type = CommitType::RetroSpec;
         assert_eq!(subject_line(&req), "retro-spec: the ledger gate");
-    }
-
-    #[test]
-    fn rust_lint_dir_honors_the_stack_root() {
-        let config = Config::from_toml(
-            "[project]\nname = \"x\"\nstacks = [\"rust\"]\n[verify.rust]\ncwd = \"cli\"\n",
-            Path::new("craftsman.toml"),
-        )
-        .expect("config parses");
-        let root = Path::new("/repo");
-        let staged_in = vec!["cli/src/main.rs".to_owned()];
-        let staged_out = vec!["docs/notes.md".to_owned()];
-        assert_eq!(
-            rust_lint_dir(&config, root, &staged_in),
-            Some(PathBuf::from("/repo/cli"))
-        );
-        assert_eq!(rust_lint_dir(&config, root, &staged_out), None);
-
-        let no_stack = Config::from_toml(
-            "[project]\nname = \"x\"\nstacks = [\"python\"]\n",
-            Path::new("craftsman.toml"),
-        )
-        .expect("config parses");
-        assert_eq!(rust_lint_dir(&no_stack, root, &staged_in), None);
     }
 }
