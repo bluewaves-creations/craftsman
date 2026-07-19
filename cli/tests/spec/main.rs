@@ -18,6 +18,7 @@
 
 mod adopt_steps;
 mod codegen_steps;
+mod delta_steps;
 mod docs_steps;
 mod engine_steps;
 mod fixtures;

@@ -9,7 +9,9 @@ mod commands;
 
 use clap::{Parser, Subcommand};
 
-use commands::{EXIT_ORCHESTRATOR_ERROR, bootstrap, docs, gate, ledger, session, spec, verify};
+use commands::{
+    EXIT_ORCHESTRATOR_ERROR, bootstrap, docs, gate, ledger, plan, session, spec, verify,
+};
 
 /// The Craftsman Dev CLI — mechanical verification for agentic development.
 ///
@@ -100,7 +102,7 @@ enum Command {
     /// Plan engine: keep the batch → scenario mapping honest
     Plan {
         #[command(subcommand)]
-        command: spec::PlanCommand,
+        command: plan::PlanCommand,
     },
     /// THE gate: run SPEC.md scenarios via the stack adapter.
     ///
@@ -322,7 +324,7 @@ fn run(cli: &Cli) -> anyhow::Result<i32> {
         Command::Setup(args) => bootstrap::setup_cmd(args),
         Command::Update { json } => bootstrap::update_cmd(*json),
         Command::Spec { command } => spec::run(command),
-        Command::Plan { command } => spec::plan_run(command),
+        Command::Plan { command } => plan::plan_run(command),
         Command::Verify(args) => verify::verify_cmd(args),
         Command::Commit(args) => ledger::commit_cmd(args),
         Command::Lint { changed, json } => gate::gate_cmd("lint", *changed, *json),

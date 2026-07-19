@@ -29,6 +29,24 @@ pub enum SpecCommand {
         /// Emit findings as JSON on stdout
         #[arg(long)]
         json: bool,
+        /// Lint SPEC.delta.md (next to the executed spec) instead: the
+        /// authoring rules plus name collisions against the executed
+        /// spec, without admitting anything to the executed set. Exit 4
+        /// when no delta file exists.
+        #[arg(long)]
+        delta: bool,
+    },
+    /// Fold an approved SPEC.delta.md into the executed spec under a
+    /// banner and remove the delta file — the mechanical boundary merge,
+    /// so the single-writer rule covers it too.
+    ///
+    /// Refuses (exit 1) while the delta has lint errors; exit 4 when no
+    /// delta file exists. Writes the spec, never commits: the repository
+    /// head stays where it was.
+    MergeDelta {
+        /// Emit the merge report as JSON on stdout
+        #[arg(long)]
+        json: bool,
     },
     /// Generate runner glue from SPEC.md for the code-gen stacks
     /// (swift → Swift Testing, bash → bats).
@@ -50,33 +68,14 @@ pub enum SpecCommand {
     },
 }
 
-#[derive(Subcommand)]
-pub enum PlanCommand {
-    /// Validate the plan's batch → scenario mapping against the spec.
-    ///
-    /// Errors (exit 1): a batch lists a scenario missing from the spec;
-    /// a scenario is assigned to two batches. Warnings (still exit 0):
-    /// spec scenarios not assigned to any batch.
-    Lint {
-        /// Emit findings as JSON on stdout
-        #[arg(long)]
-        json: bool,
-    },
-}
-
-/// Dispatch `craftsman spec <status|lint|gen>`.
+/// Dispatch `craftsman spec <status|lint|gen|merge-delta>`.
 pub fn run(command: &SpecCommand) -> anyhow::Result<i32> {
     match command {
         SpecCommand::Status { json } => spec_status(*json),
-        SpecCommand::Lint { json } => spec_lint(*json),
+        SpecCommand::Lint { json, delta: false } => spec_lint(*json),
+        SpecCommand::Lint { json, delta: true } => super::spec_delta::spec_lint_delta(*json),
         SpecCommand::Gen { json, a11y_stub } => spec_gen(*json, *a11y_stub),
-    }
-}
-
-/// Dispatch `craftsman plan <lint>`.
-pub fn plan_run(command: &PlanCommand) -> anyhow::Result<i32> {
-    match command {
-        PlanCommand::Lint { json } => plan_lint(*json),
+        SpecCommand::MergeDelta { json } => super::spec_delta::spec_merge_delta(*json),
     }
 }
 
@@ -253,7 +252,9 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
     // stays an orchestrator error (exit 3).
     let findings = match spec::parse_spec(&spec_path) {
         Ok(feature) => spec::lint(&feature),
-        Err(err @ spec::SpecError::Read { .. }) => return Err(err.into()),
+        Err(err @ (spec::SpecError::Read { .. } | spec::SpecError::Write { .. })) => {
+            return Err(err.into());
+        }
         Err(spec::SpecError::Parse { message, .. }) => vec![spec::Finding {
             severity: Severity::Error,
             rule: "parse-error",
@@ -262,10 +263,7 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
         }],
     };
 
-    let errors = findings
-        .iter()
-        .filter(|f| f.severity == Severity::Error)
-        .count();
+    let errors = count_errors(&findings);
     let warnings = findings.len() - errors;
 
     if json {
@@ -277,13 +275,7 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
         });
         println!("{doc:#}");
     } else {
-        for f in &findings {
-            let sev = match f.severity {
-                Severity::Error => "error",
-                Severity::Warning => "warning",
-            };
-            println!("{sev}[{}] line {}: {}", f.rule, f.line, f.message);
-        }
+        print_findings(&findings);
         println!(
             "spec lint: {errors} error(s), {warnings} warning(s) in {}",
             loaded.config.project.spec
@@ -294,6 +286,23 @@ fn spec_lint(json: bool) -> anyhow::Result<i32> {
     } else {
         EXIT_PASS
     })
+}
+
+pub(super) fn count_errors(findings: &[spec::Finding]) -> usize {
+    findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .count()
+}
+
+pub(super) fn print_findings(findings: &[spec::Finding]) {
+    for f in findings {
+        let sev = match f.severity {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+        };
+        println!("{sev}[{}] line {}: {}", f.rule, f.line, f.message);
+    }
 }
 
 fn spec_gen(json: bool, a11y_stub: bool) -> anyhow::Result<i32> {
@@ -341,54 +350,4 @@ fn spec_gen(json: bool, a11y_stub: bool) -> anyhow::Result<i32> {
         println!("{doc:#}");
     }
     Ok(code)
-}
-
-fn plan_lint(json: bool) -> anyhow::Result<i32> {
-    let loaded = load()?;
-    let feature = spec::parse_spec(&loaded.root.join(&loaded.config.project.spec))?;
-    let names: Vec<String> = spec::inventory(&feature)
-        .into_iter()
-        .map(|e| e.scenario)
-        .collect();
-    let plan_rel = loaded.config.project.plan;
-    let batches = plan::parse_plan(&loaded.root.join(&plan_rel))?;
-    let findings = plan::lint(&batches, &names);
-
-    let errors = findings
-        .iter()
-        .filter(|f| f.severity == Severity::Error)
-        .count();
-    let warnings = findings.len() - errors;
-    let assigned: usize = batches.iter().map(|b| b.scenarios.len()).sum();
-
-    if json {
-        let doc = serde_json::json!({
-            "plan": plan_rel,
-            "spec": loaded.config.project.spec,
-            "batches": batches.len(),
-            "assigned": assigned,
-            "findings": findings,
-            "errors": errors,
-            "warnings": warnings,
-        });
-        println!("{doc:#}");
-    } else {
-        for f in &findings {
-            let sev = match f.severity {
-                Severity::Error => "error",
-                Severity::Warning => "warning",
-            };
-            println!("{sev}[{}] line {}: {}", f.rule, f.line, f.message);
-        }
-        println!(
-            "plan lint: {errors} error(s), {warnings} warning(s) in {plan_rel} \
-             ({} batches, {assigned} scenario assignments)",
-            batches.len()
-        );
-    }
-    Ok(if errors > 0 {
-        EXIT_VERIFICATION_FAILURE
-    } else {
-        EXIT_PASS
-    })
 }

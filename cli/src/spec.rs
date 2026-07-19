@@ -10,6 +10,9 @@ use gherkin::{Feature, GherkinEnv};
 use serde::Serialize;
 use thiserror::Error;
 
+mod delta;
+pub use delta::{delta_path, lint_delta, merge_delta};
+
 /// Errors reading or parsing the spec.
 ///
 /// Read/parse failures are exit code 3 for inventory consumers; `spec lint`
@@ -25,6 +28,12 @@ pub enum SpecError {
     },
     #[error("spec {path} does not parse as Gherkin: {message}")]
     Parse { path: PathBuf, message: String },
+    #[error("failed to write spec {path}")]
+    Write {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// One scenario row of the spec inventory.

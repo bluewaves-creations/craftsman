@@ -7,8 +7,10 @@ pub mod bootstrap;
 pub mod docs;
 pub mod gate;
 pub mod ledger;
+pub mod plan;
 pub mod session;
 pub mod spec;
+pub mod spec_delta;
 pub mod verify;
 
 use anyhow::Context as _;
