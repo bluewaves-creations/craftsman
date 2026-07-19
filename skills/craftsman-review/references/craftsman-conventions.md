@@ -27,12 +27,16 @@ The `craftsman` CLI is the only writer of: ledger commits and their trailers, ga
 | decisions/ | Agent-drafted, human-gated | Record → consolidate → supersede; `index.md` first |
 | .craftsman/ | CLI | Baselines + adoption state committed; the rest gitignored |
 
+## The spec delta
+
+Approved-but-unimplemented scenarios live in `SPEC.delta.md`, a sibling of the executed spec — never in SPEC.md ahead of their implementation. `craftsman spec lint --delta` checks the delta (authoring rules plus name collisions against the executed spec) without admitting anything; `craftsman plan lint` reports plan references to delta scenarios as `delta-pending` warnings, not drift. The merge is mediated: `craftsman spec merge-delta` folds the delta under a banner and removes the file — run it when the implementing batch wires its scenarios red-first, and commit the merge together with the implementation that turns them green. Never fold a delta by hand.
+
 ## The ledger
 
 Commit through `craftsman commit` only. Types: `feat(batch-N)`, `fix`, `refactor`, `test`, `retro-spec`, `docs`, `chore(deps)`. Trailers:
 
 - `Scenarios:` — scenarios this commit affects (mandatory at batch boundaries)
-- `Verified-by:` — written by the CLI only when gates actually passed; you cannot add it by hand
+- `Verified-by:` — written by the CLI only when gates actually passed; you cannot add it by hand. The refusal is token-level: the literal token appearing anywhere in your composed message — subject, body, any trailer — rejects the commit. When a body must talk about it, write "the verification trailer".
 - `Learned:` / `Rejected:` — what implementation taught; what was tried and failed, and why
 - `Ref:` — SPEC.md / PLAN.md / ADR references
 - `Dependency:` — name@version, license, audit result, justification (new dependencies only)

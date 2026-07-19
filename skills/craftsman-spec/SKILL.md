@@ -38,7 +38,7 @@ The spec belongs to the human. You draft, propose, and refine; nothing lands in 
 
 ## delta
 
-Write the change as ADDED / MODIFIED / REMOVED scenarios against current SPEC.md truth, in a clearly marked change section. The delta merges into the main spec only when the implementing work completes (the finish or boundary gear does the merge, human-approved). During implementation the current truth stays intact — running scenarios keep their meaning.
+Write the change as ADDED / MODIFIED / REMOVED scenarios in `SPEC.delta.md`, a sibling of the executed spec. Lint it with `craftsman spec lint --delta` — the authoring rules plus name collisions against the executed spec, without admitting anything. During implementation the current truth stays intact — running scenarios keep their meaning; `craftsman plan lint` shows plan references to delta scenarios as `delta-pending` warnings, not drift. The merge is `craftsman spec merge-delta` (human-approved): run it when the implementing batch wires the scenarios red-first, and commit the fold together with the implementation that turns them green. Never fold a delta by hand.
 
 ## recover
 
@@ -50,4 +50,4 @@ Brownfield only, scoped to hotspots and critical paths — never whole-codebase 
 - Never write a scenario from training-data knowledge of an API — fetch the docs.
 - Never admit an `inferred` scenario to SPEC.md — verified only.
 - Never write implementation details into scenarios (UI selectors, function names) — behavior only.
-- Never edit SPEC.md while a batch is mid-implementation; deltas wait for the boundary.
+- Never edit SPEC.md by hand while a batch is mid-implementation; deltas enter it only through `craftsman spec merge-delta`, in the implementing batch's green-making commit.
