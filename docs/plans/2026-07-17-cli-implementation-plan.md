@@ -372,6 +372,8 @@ Tasks:
 
 Success: craftsman verify exits 0 with all seven Batch 18 scenarios green
 
+*(Boundary close-out 2026-07-19 — success line MET: full verify 113 green / 2 unknown (the network-gated pair), all seven Batch 18 scenarios green, every one observed red first. Four commits: 1f86bda (harness consolidation: fixtures.rs + CliWorld::prime + the traps README, suite green twice consecutively), a75a832 (spec lint --delta + spec merge-delta; the health gate refused the first attempt — both spec.rs files broke max-file-lines — and was answered by extraction into spec/delta.rs, commands/spec_delta.rs, commands/plan.rs), 397c2dc (plan lint delta awareness + doctor parity via spec::delta_scenario_names; this repo's own plan lint now exits 0 with Batch 19's four scenarios visible as delta-pending — the finding from the routing session closed). The health gate fired twice mid-batch and both times forced the extraction the design wanted; gates as architecture pressure, not just defect nets.)*
+
 ## Batch 19 — Boundary observability (agent-feedback harvest, approved 2026-07-19)
 
 *(Source: dogfood finding 13 — boundary extraction never fired for five batches because the rule lived in prose; prose rules decay under context pressure, exit codes and printed lines do not. Design approved by the human 2026-07-19: pure visibility, never a threshold, never a block — the boundary stays a human judgment; the machine only makes skipping it impossible to miss. "Ledger commits" are commits carrying a Verified-by trailer.)*
