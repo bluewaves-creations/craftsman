@@ -19,6 +19,22 @@ pub fn delta_path(spec_path: &Path) -> PathBuf {
     )
 }
 
+/// The scenario names waiting in the delta next to `spec_path` — empty
+/// when no delta exists or it does not parse (`spec lint --delta` owns
+/// reporting a broken delta; consumers here only need the names).
+#[must_use]
+pub fn delta_scenario_names(spec_path: &Path) -> Vec<String> {
+    parse_spec(&delta_path(spec_path)).map_or_else(
+        |_| Vec::new(),
+        |f| {
+            super::inventory(&f)
+                .into_iter()
+                .map(|e| e.scenario)
+                .collect()
+        },
+    )
+}
+
 /// Lint a delta feature: the full authoring rules plus name collisions
 /// against the executed spec's scenario names.
 #[must_use]

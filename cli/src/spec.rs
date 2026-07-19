@@ -11,7 +11,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 mod delta;
-pub use delta::{delta_path, lint_delta, merge_delta};
+pub use delta::{delta_path, delta_scenario_names, lint_delta, merge_delta};
 
 /// Errors reading or parsing the spec.
 ///

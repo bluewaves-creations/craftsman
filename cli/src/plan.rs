@@ -135,28 +135,27 @@ fn batch_number(rest: &str) -> Option<u32> {
 
 /// Lint the plan's batch → scenario mapping against the spec inventory.
 ///
-/// Errors: a listed scenario missing from the spec; a scenario assigned to
-/// two batches. Warning: a spec scenario assigned to no batch (coverage gap
-/// — reported, not fatal). Findings carry plan-file line numbers (0 for
+/// Errors: a listed scenario missing from both the spec and the delta; a
+/// scenario assigned to two batches. Warnings: a scenario that lives in
+/// SPEC.delta.md (approved, pending merge — visible, never drift) and a
+/// spec scenario assigned to no batch (coverage gap — reported, not
+/// fatal). Findings carry plan-file line numbers (0 for
 /// unassigned-scenario findings, which have no plan line).
 #[must_use]
-pub fn lint(plan_batches: &[PlanBatch], spec_scenarios: &[String]) -> Vec<Finding> {
+pub fn lint(
+    plan_batches: &[PlanBatch],
+    spec_scenarios: &[String],
+    delta_scenarios: &[String],
+) -> Vec<Finding> {
     let known: HashSet<&str> = spec_scenarios.iter().map(String::as_str).collect();
+    let pending: HashSet<&str> = delta_scenarios.iter().map(String::as_str).collect();
     let mut assigned: HashMap<&str, u32> = HashMap::new();
     let mut findings = Vec::new();
 
     for batch in plan_batches {
         for (line, name) in &batch.scenarios {
             if !known.contains(name.as_str()) {
-                findings.push(Finding::error(
-                    "unknown-scenario",
-                    *line,
-                    format!(
-                        "batch {} lists scenario {name:?} which is not in the spec — \
-                         plan drift; fix the plan (only the human changes the spec)",
-                        batch.number
-                    ),
-                ));
+                findings.push(drift_finding(name, *line, batch.number, &pending));
             }
             if let Some(&first) = assigned.get(name.as_str()) {
                 findings.push(Finding::error(
@@ -184,6 +183,31 @@ pub fn lint(plan_batches: &[PlanBatch], spec_scenarios: &[String]) -> Vec<Findin
     }
 
     findings
+}
+
+/// The verdict for a plan-listed name the executed spec does not know:
+/// waiting in the delta → approved-pending warning; otherwise drift.
+fn drift_finding(name: &str, line: usize, batch: u32, pending: &HashSet<&str>) -> Finding {
+    if pending.contains(name) {
+        Finding::warning(
+            "delta-pending",
+            line,
+            format!(
+                "batch {batch} lists scenario {name:?} which lives in \
+                 SPEC.delta.md — approved, pending merge \
+                 (`spec merge-delta` folds it in at the boundary)"
+            ),
+        )
+    } else {
+        Finding::error(
+            "unknown-scenario",
+            line,
+            format!(
+                "batch {batch} lists scenario {name:?} which is not in the spec — \
+                 plan drift; fix the plan (only the human changes the spec)"
+            ),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -291,13 +315,14 @@ No scenarios list here.
         let findings = lint(
             &batches(PLAN),
             &spec_names(&["First behavior", "Second behavior", "Third behavior"]),
+            &[],
         );
         assert!(findings.is_empty(), "{findings:?}");
     }
 
     #[test]
     fn lint_flags_scenarios_missing_from_the_spec() {
-        let findings = lint(&batches(PLAN), &spec_names(&["First behavior"]));
+        let findings = lint(&batches(PLAN), &spec_names(&["First behavior"]), &[]);
         assert_eq!(
             rules(&findings, Severity::Error),
             vec!["unknown-scenario", "unknown-scenario"]
@@ -306,10 +331,22 @@ No scenarios list here.
     }
 
     #[test]
+    fn lint_reports_delta_scenarios_as_pending_not_drift() {
+        let findings = lint(
+            &batches(PLAN),
+            &spec_names(&["First behavior", "Second behavior"]),
+            &spec_names(&["Third behavior"]),
+        );
+        assert_eq!(rules(&findings, Severity::Error), Vec::<&str>::new());
+        assert_eq!(rules(&findings, Severity::Warning), vec!["delta-pending"]);
+        assert!(findings[0].message.contains("SPEC.delta.md"));
+    }
+
+    #[test]
     fn lint_flags_a_scenario_assigned_twice() {
         let plan =
             "## Batch 1\n\nScenarios:\n- Same thing\n\n## Batch 2\n\nScenarios:\n- Same thing\n";
-        let findings = lint(&batches(plan), &spec_names(&["Same thing"]));
+        let findings = lint(&batches(plan), &spec_names(&["Same thing"]), &[]);
         assert_eq!(
             rules(&findings, Severity::Error),
             vec!["duplicate-assignment"]
@@ -327,6 +364,7 @@ No scenarios list here.
                 "Third behavior",
                 "Orphan behavior",
             ]),
+            &[],
         );
         assert_eq!(rules(&findings, Severity::Error), Vec::<&str>::new());
         assert_eq!(

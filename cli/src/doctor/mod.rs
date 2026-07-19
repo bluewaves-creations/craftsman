@@ -181,9 +181,13 @@ fn check_plan(checks: &mut Vec<Check>, loaded: Option<&Loaded>, spec_names: Opti
         ));
         return;
     };
+    // Names waiting in SPEC.delta.md are approved-pending, not drift —
+    // the same delta awareness `craftsman plan lint` applies.
+    let delta_names =
+        crate::spec::delta_scenario_names(&loaded.root.join(&loaded.config.project.spec));
     match plan::parse_plan(&path) {
         Ok(batches) => {
-            let findings = plan::lint(&batches, names);
+            let findings = plan::lint(&batches, names, &delta_names);
             let errors = findings
                 .iter()
                 .filter(|f| f.severity == Severity::Error)

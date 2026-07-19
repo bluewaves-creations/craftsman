@@ -31,14 +31,17 @@ pub fn plan_run(command: &PlanCommand) -> anyhow::Result<i32> {
 
 fn plan_lint(json: bool) -> anyhow::Result<i32> {
     let loaded = load()?;
-    let feature = spec::parse_spec(&loaded.root.join(&loaded.config.project.spec))?;
+    let spec_path = loaded.root.join(&loaded.config.project.spec);
+    let feature = spec::parse_spec(&spec_path)?;
     let names: Vec<String> = spec::inventory(&feature)
         .into_iter()
         .map(|e| e.scenario)
         .collect();
+    // Names waiting in SPEC.delta.md are approved-pending, not drift.
+    let delta_names = spec::delta_scenario_names(&spec_path);
     let plan_rel = loaded.config.project.plan;
     let batches = plan::parse_plan(&loaded.root.join(&plan_rel))?;
-    let findings = plan::lint(&batches, &names);
+    let findings = plan::lint(&batches, &names, &delta_names);
 
     let errors = count_errors(&findings);
     let warnings = findings.len() - errors;
