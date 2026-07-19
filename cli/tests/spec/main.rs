@@ -32,6 +32,7 @@ mod project_steps;
 mod repo_steps;
 mod runtime_steps;
 mod security_steps;
+mod session_steps;
 mod setup_steps;
 mod update_steps;
 

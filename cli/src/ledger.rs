@@ -115,6 +115,9 @@ pub struct CommitReport {
     pub sha: Option<String>,
     pub subject: String,
     pub gates: Vec<GateRun>,
+    /// The project root the attempt ran in, for follow-up reporting
+    /// (e.g. the session distance line) without a second config load.
+    pub root: PathBuf,
 }
 
 /// Run the gates and, if green, create the ledger commit from the staged
@@ -159,6 +162,7 @@ pub fn commit(cwd: &Path, request: &CommitRequest) -> Result<CommitReport, Ledge
             sha: None,
             subject,
             gates,
+            root,
         });
     }
 
@@ -178,6 +182,7 @@ pub fn commit(cwd: &Path, request: &CommitRequest) -> Result<CommitReport, Ledge
         sha: Some(sha),
         subject,
         gates,
+        root,
     })
 }
 

@@ -147,6 +147,9 @@ fn spec_status(json: bool) -> anyhow::Result<i32> {
              may be stale; re-run `craftsman verify`"
         );
     }
+    if let Some(line) = craftsman::session::distance_line(root) {
+        eprintln!("{line}");
+    }
     Ok(EXIT_PASS)
 }
 

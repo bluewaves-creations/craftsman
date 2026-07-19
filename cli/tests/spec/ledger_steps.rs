@@ -16,7 +16,12 @@ fn committed_fixture(w: &mut CliWorld, dir_name: &str) {
 
 #[given("a craftsman project whose gates are all green")]
 fn green_gates_project(w: &mut CliWorld) {
-    committed_fixture(w, "craftsman-spec-ledger-green-fixture");
+    // More than one scenario shares this Given; a per-invocation directory
+    // keeps them collision-free under cucumber's concurrent runner (the
+    // scaffold scrubs .git on entry — sharing a live dir would race).
+    static INVOCATION: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = INVOCATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    committed_fixture(w, &format!("craftsman-spec-ledger-green-fixture-{n}"));
 }
 
 /// Same scaffold plus a scenario whose step has no definition — verify

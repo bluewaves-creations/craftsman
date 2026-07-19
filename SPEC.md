@@ -774,3 +774,31 @@ Feature: Craftsman CLI core
     When I run craftsman with "plan lint"
     Then the exit code is 0
     And the output contains "delta"
+
+  # ————— Merged from SPEC.delta.md (approved delta) —————
+
+  Scenario: An extract resets the boundary distance to zero
+    Given a craftsman project where an extract just ran at the current head
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "0 ledger commits since last extract"
+
+  Scenario: Ledger commits after the last extract are counted visibly
+    Given a craftsman project where 2 ledger commits landed after the last extract
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "2 ledger commits since last extract"
+
+  Scenario: Commit reports the distance to the last extract
+    Given a craftsman project whose gates are all green
+    And an extract ran at the current head
+    And a file is staged
+    When I run craftsman commit with type "chore" and message "observe boundary distance"
+    Then the exit code is 0
+    And the output contains "1 ledger commit since last extract"
+
+  Scenario: Spec status is explicit when no extract has ever run
+    Given a craftsman project where no extract has ever run
+    When I run craftsman with "spec status"
+    Then the exit code is 0
+    And the output contains "no extract recorded"

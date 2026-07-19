@@ -65,7 +65,12 @@ pub fn commit_cmd(args: &CommitArgs) -> anyhow::Result<i32> {
         dependencies: args.dependency.clone(),
     };
     let report = ledger::commit(&cwd()?, &request)?;
+    Ok(print_report(&report, args.json))
+}
 
+/// Report the attempt on stderr (and stdout as JSON when asked) and
+/// return the exit code.
+fn print_report(report: &ledger::CommitReport, json: bool) -> i32 {
     for g in &report.gates {
         if g.passed {
             eprintln!("gate {}: ok ({})", g.gate, g.detail);
@@ -73,7 +78,7 @@ pub fn commit_cmd(args: &CommitArgs) -> anyhow::Result<i32> {
             eprintln!("gate {} FAILED:\n{}", g.gate, g.detail);
         }
     }
-    if args.json {
+    if json {
         let doc = serde_json::json!({
             "committed": report.committed,
             "sha": report.sha,
@@ -82,11 +87,11 @@ pub fn commit_cmd(args: &CommitArgs) -> anyhow::Result<i32> {
         });
         println!("{doc:#}");
     }
-    if report.committed {
+    let code = if report.committed {
         let sha = report.sha.as_deref().unwrap_or("");
         let short = &sha[..sha.len().min(9)];
         eprintln!("committed {short} {}", report.subject);
-        Ok(EXIT_PASS)
+        EXIT_PASS
     } else {
         let red = report
             .gates
@@ -96,6 +101,12 @@ pub fn commit_cmd(args: &CommitArgs) -> anyhow::Result<i32> {
             .collect::<Vec<_>>()
             .join(", ");
         eprintln!("commit refused — red gate: {red} (nothing committed)");
-        Ok(EXIT_VERIFICATION_FAILURE)
+        EXIT_VERIFICATION_FAILURE
+    };
+    // Boundary observability: pure visibility, printed whether or not the
+    // commit landed — never a threshold, never a block.
+    if let Some(line) = craftsman::session::distance_line(&report.root) {
+        eprintln!("{line}");
     }
+    code
 }

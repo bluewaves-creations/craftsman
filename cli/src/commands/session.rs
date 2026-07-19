@@ -71,6 +71,12 @@ pub fn extract_cmd(args: &ExtractArgs) -> anyhow::Result<i32> {
             report.learnings_appended
         );
     }
+    if let Some(head) = &report.receipt_head {
+        eprintln!(
+            "extract: boundary receipt at {} — the session distance counts from here",
+            &head[..head.len().min(9)]
+        );
+    }
     if args.json {
         println!("{:#}", serde_json::json!(report));
     }

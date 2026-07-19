@@ -20,6 +20,10 @@ use std::process::Command;
 use serde::Serialize;
 use thiserror::Error;
 
+mod receipt;
+use receipt::write_receipt;
+pub use receipt::{ExtractReceipt, distance_line};
+
 use crate::config::{Config, ConfigError};
 use crate::gates::baseline::iso_utc_now;
 
@@ -53,6 +57,8 @@ pub struct ExtractReport {
     pub index: String,
     pub batch_file: Option<String>,
     pub learnings_appended: usize,
+    /// The head the boundary receipt recorded; `None` outside a repository.
+    pub receipt_head: Option<String>,
 }
 
 const SESSION_DIR: &str = ".craftsman/session";
@@ -85,26 +91,7 @@ pub fn extract(
         None => None,
     };
 
-    let mut learnings_appended = 0;
-    if !req.failed.is_empty() {
-        let path = dir.join("learnings.md");
-        let mut text = if path.is_file() {
-            std::fs::read_to_string(&path).map_err(|source| SessionError::Io {
-                path: path.clone(),
-                source,
-            })?
-        } else {
-            "# Learnings (append-only): failed approaches, surprises, gotchas\n\n".to_owned()
-        };
-        for item in &req.failed {
-            let batch = req
-                .batch
-                .map_or_else(String::new, |n| format!("batch {n}, "));
-            let _ = writeln!(text, "- [{batch}{now}] {item}");
-            learnings_appended += 1;
-        }
-        std::fs::write(&path, text).map_err(|source| SessionError::Io { path, source })?;
-    }
+    let learnings_appended = append_learnings(&dir, req, &now)?;
 
     let index = render_index(&now, req, plan.as_ref(), active.as_deref(), &dir);
     let index_path = dir.join("index.md");
@@ -112,12 +99,38 @@ pub fn extract(
         path: index_path,
         source,
     })?;
+    let receipt_head = write_receipt(&dir, root, &now)?;
 
     Ok(ExtractReport {
         index: format!("{SESSION_DIR}/index.md"),
         batch_file,
         learnings_appended,
+        receipt_head,
     })
+}
+
+/// Append failed approaches to the append-only `learnings.md`.
+fn append_learnings(dir: &Path, req: &ExtractRequest, now: &str) -> Result<usize, SessionError> {
+    if req.failed.is_empty() {
+        return Ok(0);
+    }
+    let path = dir.join("learnings.md");
+    let mut text = if path.is_file() {
+        std::fs::read_to_string(&path).map_err(|source| SessionError::Io {
+            path: path.clone(),
+            source,
+        })?
+    } else {
+        "# Learnings (append-only): failed approaches, surprises, gotchas\n\n".to_owned()
+    };
+    for item in &req.failed {
+        let batch = req
+            .batch
+            .map_or_else(String::new, |n| format!("batch {n}, "));
+        let _ = writeln!(text, "- [{batch}{now}] {item}");
+    }
+    std::fs::write(&path, text).map_err(|source| SessionError::Io { path, source })?;
+    Ok(req.failed.len())
 }
 
 /// The content of `index.md`, for `extract --show`.
